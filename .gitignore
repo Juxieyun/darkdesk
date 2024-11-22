@@ -16,6 +16,8 @@ src/version.rs
 cert.pfx
 *.bak
 *png
+# include res/*.png
+!res/*.png
 *svg
 *jpg
 sciter.dll
