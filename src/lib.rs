@@ -1,3 +1,11 @@
+/*
+ * @Author: SpenserCai
+ * @Date: 2024-11-22 00:34:11
+ * @version: 
+ * @LastEditors: SpenserCai
+ * @LastEditTime: 2024-11-22 17:38:13
+ * @Description: file content
+ */
 mod keyboard;
 /// cbindgen:ignore
 pub mod platform;
@@ -16,6 +24,9 @@ mod lan;
 mod rendezvous_mediator;
 #[cfg(not(any(target_os = "ios")))]
 pub use self::rendezvous_mediator::*;
+// spensercai change
+pub mod api;
+pub mod plugin_tools;
 /// cbindgen:ignore
 pub mod common;
 #[cfg(not(any(target_os = "ios")))]

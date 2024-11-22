@@ -29,6 +29,7 @@ fn main() {
     unsafe {
         winapi::um::shellscalingapi::SetProcessDpiAwareness(2);
     }
+    // api::run(); //spensercai change
     if let Some(args) = crate::core_main::core_main().as_mut() {
         ui::start(args);
     }

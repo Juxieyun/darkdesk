@@ -79,6 +79,8 @@ lazy_static::lazy_static! {
     pub static ref HARD_SETTINGS: RwLock<HashMap<String, String>> = {
         let mut m = HashMap::new();
         m.insert("disable-account".to_string(), "Y".to_string());
+        // spensercai todo
+        // m.insert("disable-ctrl-api".to_string(), "Y".to_string());
         RwLock::new(m)
     };
     
