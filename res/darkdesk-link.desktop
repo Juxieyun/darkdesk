@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=DarkDeskURL Scheme Handler
+NoDisplay=true
+MimeType=x-scheme-handler/darkdesk;
+TryExec=darkdesk
+Exec=darkdesk %u
+Icon=darkdesk
+Terminal=false
+Type=Application
+StartupNotify=false
