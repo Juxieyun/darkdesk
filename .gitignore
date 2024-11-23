@@ -19,6 +19,7 @@ cert.pfx
 # include res/*.png
 !res/*.png
 *svg
+!res/*.svg
 *jpg
 sciter.dll
 **pdb
