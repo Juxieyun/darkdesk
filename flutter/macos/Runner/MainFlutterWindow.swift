@@ -53,6 +53,10 @@ class MainFlutterWindow: NSWindow {
         
         super.awakeFromNib()
     }
+
+    override func performClose(_ sender: Any?) {
+        self.orderOut(nil)
+    }
     
     override public func order(_ place: NSWindow.OrderingMode, relativeTo otherWin: Int) {
         super.order(place, relativeTo: otherWin)
@@ -79,9 +83,9 @@ class MainFlutterWindow: NSWindow {
                     self.setWindowInterfaceMode(window: window,themeName: themeName ?? "light")
                     result(nil)
                     break;
-                case "terminate":
-                    NSApplication.shared.terminate(self)
-                    result(nil)
+                // case "terminate":
+                //     NSApplication.shared.terminate(self)
+                //     result(nil)
                 case "canRecordAudio":
                     switch AVCaptureDevice.authorizationStatus(for: .audio) {
                     case .authorized:

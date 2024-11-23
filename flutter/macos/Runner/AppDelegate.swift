@@ -21,4 +21,16 @@ class AppDelegate: FlutterAppDelegate {
         launched = true;
         NSApplication.shared.activate(ignoringOtherApps: true);
     }
+
+    override func applicationDidBecomeActive(_ notification: Notification) {
+        if let window = NSApplication.shared.windows.first {
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    override func applicationDidUnhide(_ notification: Notification) {
+        if let window = NSApplication.shared.windows.first {
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
 }
