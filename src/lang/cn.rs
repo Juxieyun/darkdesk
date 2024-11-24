@@ -150,7 +150,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Click to download", "点击这里下载"),
         ("Click to update", "点击这里更新"),
         ("Configure", "配置"),
-        ("config_acc", "为了能够远程控制你的桌面, 请给予 Dark \"辅助功能\" 权限。"),
+        ("config_acc", "为了能够远程控制你的桌面, 请给予 DarkDesk \"辅助功能\" 权限。"),
         ("config_screen", "为了能够远程访问你的桌面, 请给予 DarkDesk \"屏幕录制\" 权限。"),
         ("Installing ...", "安装中..."),
         ("Install", "安装"),
