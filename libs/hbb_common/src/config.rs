@@ -73,14 +73,11 @@ lazy_static::lazy_static! {
     pub static ref BUILTIN_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
 
     // spensercai change
-    // set disable-account true in HARD_SETTINGS to disable account feature
-    // create HashMap<String, String> HARD_SETTINGS in main.rs
-    
+    // HARD_SETTINGS plugin
     pub static ref HARD_SETTINGS: RwLock<HashMap<String, String>> = {
         let mut m = HashMap::new();
         m.insert("disable-account".to_string(), "Y".to_string());
-        // spensercai todo
-        // m.insert("disable-ctrl-api".to_string(), "Y".to_string());
+        m.insert("disable-ctrl-api".to_string(), "Y".to_string());
         RwLock::new(m)
     };
     
@@ -2149,6 +2146,12 @@ pub fn is_disable_ab() -> bool {
 #[inline]
 pub fn is_disable_account() -> bool {
     is_some_hard_opton("disable-account")
+}
+
+// spensercai change
+#[inline]
+pub fn is_disable_ctrl_api() -> bool {
+    is_some_hard_opton("disable-ctrl-api")
 }
 
 #[inline]

@@ -29,6 +29,8 @@ macro_rules! my_println{
 /// If it returns [`Some`], then the process will continue, and flutter gui will be started.
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn core_main() -> Option<Vec<String>> {
+    use hbb_common::config::is_disable_ctrl_api;
+
     use crate::api;
 
     crate::load_custom_client();
@@ -140,9 +142,6 @@ pub fn core_main() -> Option<Vec<String>> {
     }
     hbb_common::init_log(false, &log_name);
     log::info!("main start args: {:?}, env: {:?}", args, std::env::args());
-    // spensercai change
-    // log::info!("flutter control api start");
-    // api::run();
 
     // linux uni (url) go here.
     #[cfg(all(target_os = "linux", feature = "flutter"))]
@@ -269,6 +268,11 @@ pub fn core_main() -> Option<Vec<String>> {
             return None;
         } else if args[0] == "--server" {
             log::info!("start --server with user {}", crate::username());
+            // spensercai change
+            if !is_disable_ctrl_api() {
+                log::info!("flutter control api start");
+                api::run();
+            }
             #[cfg(target_os = "linux")]
             {
                 hbb_common::allow_err!(crate::platform::check_autostart_config());
