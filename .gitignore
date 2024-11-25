@@ -18,6 +18,7 @@ cert.pfx
 *png
 # include res/*.png
 !res/*.png
+!libs/portable/src/res/*.png
 *svg
 !res/*.svg
 *jpg
