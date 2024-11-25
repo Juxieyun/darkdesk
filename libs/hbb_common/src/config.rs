@@ -75,7 +75,20 @@ lazy_static::lazy_static! {
         m.insert("enable-check-update".to_string(), "N".to_string());
         RwLock::new(m)
     };
-    pub static ref BUILTIN_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
+
+    // spensercai change
+    // support build different client with feature
+    pub static ref BUILTIN_SETTINGS: RwLock<HashMap<String, String>> = {
+        #[cfg(all(feature = "easy_client",any(target_os = "windows", target_os = "linux")))]
+        {
+            let mut m = HashMap::new();
+            // hide-tray, hide-help-card
+            m.insert("hide-tray".to_string(), "Y".to_string());
+            m.insert("hide-help-card".to_string(), "Y".to_string());
+            RwLock::new(m)
+        }
+        Default::default()
+    };
 
     // spensercai change
     // HARD_SETTINGS plugin

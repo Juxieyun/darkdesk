@@ -3,7 +3,7 @@
  * @Date: 2024-11-25 12:54:52
  * @version: 
  * @LastEditors: SpenserCai
- * @LastEditTime: 2024-11-25 12:59:13
+ * @LastEditTime: 2024-11-25 21:10:30
  * @Description: file content
 -->
 # 编译
@@ -21,3 +21,7 @@ dart pub get
 cd ..
 python3 build.py --flutter
 ```
+
+为了实现可以编译完整版和精简版客户端，在config中添加了基于feature的编译方式参考:
+[config.rs](./libs/hbb_common/src/config.rs#L81)
+
