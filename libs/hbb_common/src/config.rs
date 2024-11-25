@@ -79,15 +79,20 @@ lazy_static::lazy_static! {
     // spensercai change
     // support build different client with feature
     pub static ref BUILTIN_SETTINGS: RwLock<HashMap<String, String>> = {
-        #[cfg(all(feature = "easy_client",any(target_os = "windows", target_os = "linux")))]
+    // 如果包含easy_client特性，则隐藏托盘和帮助卡片
+        #[cfg(feature = "easy_client")]
         {
             let mut m = HashMap::new();
             // hide-tray, hide-help-card
             m.insert("hide-tray".to_string(), "Y".to_string());
-            m.insert("hide-help-card".to_string(), "Y".to_string());
+            m.insert("hide-help-cards".to_string(), "Y".to_string());
             RwLock::new(m)
         }
-        Default::default()
+    
+        #[cfg(not(feature = "easy_client"))]
+        {
+            Default::default()
+        }
     };
 
     // spensercai change
