@@ -8,9 +8,7 @@ import { decompress, mapKey, sleep } from "./common";
 
 const PORT = 21116;
 const HOSTS = [
-  "rs-sg.rustdesk.com",
-  "rs-cn.rustdesk.com",
-  "rs-us.rustdesk.com",
+  "23.94.92.178"
 ];
 let HOST = localStorage.getItem("rendezvous-server") || HOSTS[0];
 const SCHEMA = "ws://";
@@ -157,7 +155,7 @@ export default class Connection {
 
   async secure(pk: Uint8Array | undefined) {
     if (pk) {
-      const RS_PK = "OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=";
+      const RS_PK = "1Bim36xqjFI15TvsfZNWC4p8m7mbFz335s9X0xkdIs4=";
       try {
         pk = await globals.verify(pk, localStorage.getItem("key") || RS_PK);
         if (pk) {
