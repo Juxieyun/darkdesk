@@ -9,7 +9,11 @@ flutter build web --release
 if [[ $* == *--release* ]]; then
     version=$(date "+%Y%m%d%H%M%S")
     echo "version: $version"
+    # 如果不存在web-client-release目录，则创建
+    if [ ! -d "./build/web-client-release" ]; then
+        mkdir ./build/web-client-release
+    fi
     #把build/web目录中除了web_deps.tar.gz以外的文件压缩到../web-client-release/web_{version}.tar.gz
-    tar -zcvf ../web-client-release/web_${version}.tar.gz --exclude=web_deps.tar.gz -C build/web .
+    tar -zcvf ./build/web-client-release/web_${version}.tar.gz --exclude=web_deps.tar.gz -C build/web .
 fi
     
