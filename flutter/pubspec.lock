@@ -303,7 +303,7 @@ packages:
       path: "."
       ref: HEAD
       resolved-ref: bd6b5b41254e57c5bcece202ebfb234de63e6487
-      url: "https://github.com/rustdesk-org/Dash-Chat-2"
+      url: "https://github.com/darkdesk-org/Dash-Chat-2"
     source: git
     version: "0.0.18"
   dbus:
@@ -336,7 +336,7 @@ packages:
       path: "."
       ref: HEAD
       resolved-ref: "519350f1f40746798299e94786197d058353bac9"
-      url: "https://github.com/rustdesk-org/rustdesk_desktop_multi_window"
+      url: "https://github.com/darkdesk-org/rustdesk_desktop_multi_window"
     source: git
     version: "0.1.0"
   device_info_plus:
@@ -377,7 +377,7 @@ packages:
       path: "."
       ref: "24cb88413fa5181d949ddacbb30a65d5c459e7d9"
       resolved-ref: "24cb88413fa5181d949ddacbb30a65d5c459e7d9"
-      url: "https://github.com/rustdesk-org/dynamic_layouts.git"
+      url: "https://github.com/darkdesk-org/dynamic_layouts.git"
     source: git
     version: "0.0.1+1"
   extended_text:
@@ -527,7 +527,7 @@ packages:
       path: "."
       ref: "2ded7f146437a761ffe6981e2f742038f85ca68d"
       resolved-ref: "2ded7f146437a761ffe6981e2f742038f85ca68d"
-      url: "https://github.com/rustdesk-org/flutter_gpu_texture_renderer"
+      url: "https://github.com/darkdesk-org/flutter_gpu_texture_renderer"
     source: git
     version: "0.0.1"
   flutter_improved_scrolling:
@@ -536,7 +536,7 @@ packages:
       path: "."
       ref: HEAD
       resolved-ref: "62f09545149f320616467c306c8c5f71714a18e6"
-      url: "https://github.com/rustdesk-org/flutter_improved_scrolling"
+      url: "https://github.com/darkdesk-org/flutter_improved_scrolling"
     source: git
     version: "0.0.3"
   flutter_keyboard_visibility:
@@ -1320,7 +1320,7 @@ packages:
       path: uni_links
       ref: f416118d843a7e9ed117c7bb7bdc2deda5a9e86f
       resolved-ref: f416118d843a7e9ed117c7bb7bdc2deda5a9e86f
-      url: "https://github.com/rustdesk-org/uni_links"
+      url: "https://github.com/darkdesk-org/uni_links"
     source: git
     version: "0.5.1"
   uni_links_desktop:
@@ -1569,7 +1569,7 @@ packages:
       path: "."
       ref: HEAD
       resolved-ref: "85789bfe6e4cfaf4ecc00c52857467fdb7f26879"
-      url: "https://github.com/rustdesk-org/window_manager"
+      url: "https://github.com/darkdesk-org/window_manager"
     source: git
     version: "0.3.6"
   window_size:

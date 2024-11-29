@@ -39,7 +39,7 @@ dependencies:
   toggle_switch: ^2.1.0
   dash_chat_2:
     git:
-      url: https://github.com/rustdesk-org/Dash-Chat-2
+      url: https://github.com/darkdesk-org/Dash-Chat-2
   draggable_float_widget: ^0.1.0
   settings_ui: ^2.0.2
   flutter_breadcrumb: ^1.0.1
@@ -52,10 +52,10 @@ dependencies:
   flutter_rust_bridge: "1.80.1"
   window_manager:
     git:
-      url: https://github.com/rustdesk-org/window_manager
+      url: https://github.com/darkdesk-org/window_manager
   desktop_multi_window:
     git:
-      url: https://github.com/rustdesk-org/rustdesk_desktop_multi_window
+      url: https://github.com/darkdesk-org/rustdesk_desktop_multi_window
   freezed_annotation: ^2.0.3
   flutter_custom_cursor: ^0.0.4
   window_size:
@@ -77,10 +77,10 @@ dependencies:
     # for flutter 3.0.5, please use official version(just comment code below).
     # if build rustdesk by flutter >=3.3, please use our custom pub below (uncomment code below).
     git:
-      url: https://github.com/rustdesk-org/flutter_improved_scrolling
+      url: https://github.com/darkdesk-org/flutter_improved_scrolling
   uni_links:
     git:
-      url: https://github.com/rustdesk-org/uni_links
+      url: https://github.com/darkdesk-org/uni_links
       path: uni_links
       ref: f416118d843a7e9ed117c7bb7bdc2deda5a9e86f
   uni_links_desktop: ^0.1.6 # use 0.1.6 to make flutter 3.13 works
@@ -96,14 +96,14 @@ dependencies:
   dropdown_button2: ^2.0.0
   flutter_gpu_texture_renderer:
     git:
-      url: https://github.com/rustdesk-org/flutter_gpu_texture_renderer
+      url: https://github.com/darkdesk-org/flutter_gpu_texture_renderer
       ref: 2ded7f146437a761ffe6981e2f742038f85ca68d
   uuid: ^3.0.7
   auto_size_text_field: ^2.2.1
   flex_color_picker: ^3.3.0
   dynamic_layouts:
     git:
-      url: https://github.com/rustdesk-org/dynamic_layouts.git
+      url: https://github.com/darkdesk-org/dynamic_layouts.git
       ref: 24cb88413fa5181d949ddacbb30a65d5c459e7d9
   pull_down_button: ^0.9.3
   device_info_plus: ^9.1.0
