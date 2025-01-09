@@ -47,7 +47,7 @@ fn get_temporary_password(payload: &serde_json::Value) -> String {
     }
     let my_name = payload["my_name"].as_str().unwrap();
     // spensercai todo
-    // hbb_common::config::LocalConfig::set_my_name(my_name);
+    hbb_common::config::LocalConfig::set_my_name(my_name);
     hbb_common::password_security::update_temporary_password();
     let passwd = hbb_common::password_security::temporary_password();
     let data = serde_json::json!({ "temporary_password": passwd, "id": ipc::get_id() });

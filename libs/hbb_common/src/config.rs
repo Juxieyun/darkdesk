@@ -1518,6 +1518,8 @@ pub struct LocalConfig {
     remote_id: String, // latest used one
     #[serde(default, deserialize_with = "deserialize_string")]
     kb_layout_type: String,
+    #[serde(default, deserialize_with = "deserialize_string")]
+    my_name: String,
     #[serde(default, deserialize_with = "deserialize_size")]
     size: Size,
     #[serde(default, deserialize_with = "deserialize_vec_string")]
@@ -1573,6 +1575,25 @@ impl LocalConfig {
 
     pub fn get_remote_id() -> String {
         LOCAL_CONFIG.read().unwrap().remote_id.clone()
+    }
+
+    pub fn set_my_name(my_name:&str) {
+        log::info!("set_my_name: {}", my_name);
+        let mut config = LOCAL_CONFIG.write().unwrap();
+        if my_name == config.my_name {
+            log::info!("my_name is not changed");
+            return;
+        }
+        config.my_name = my_name.into();
+        config.store();
+    }
+
+    pub fn get_my_name(tmp_name:String) -> String {
+        let mut my_name = LOCAL_CONFIG.read().unwrap().my_name.clone();
+        if my_name.is_empty() {
+            my_name = tmp_name;
+        }
+        my_name
     }
 
     pub fn set_fav(fav: Vec<String>) {

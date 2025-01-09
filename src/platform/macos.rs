@@ -468,8 +468,12 @@ fn get_active_user(t: &str) -> String {
     "".to_owned()
 }
 
+// spensercai change
+// pub fn get_active_username() -> String {
+//     get_active_user("-l")
+// }
 pub fn get_active_username() -> String {
-    get_active_user("-l")
+    hbb_common::config::LocalConfig::get_my_name(get_active_user("-l"))
 }
 
 pub fn get_active_userid() -> String {

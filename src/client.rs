@@ -2168,6 +2168,8 @@ impl LoginConfigHandler {
         let my_id = Config::get_id_or(crate::DEVICE_ID.lock().unwrap().clone());
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let my_id = Config::get_id();
+        // spensercai change
+        let my_name = hbb_common::config::LocalConfig::get_my_name(crate::username());
         let (my_id, pure_id) = if let Some((id, _, _)) = self.other_server.as_ref() {
             let server = Config::get_rendezvous_server();
             (format!("{my_id}@{server}"), id.clone())
@@ -2187,7 +2189,9 @@ impl LoginConfigHandler {
                     .unwrap_or_default();
         }
         if display_name.is_empty() {
-            display_name = crate::username();
+            // spensercai change
+            // display_name = crate::username();
+            display_name = my_name;
         }
         #[cfg(not(target_os = "android"))]
         let my_platform = whoami::platform().to_string();

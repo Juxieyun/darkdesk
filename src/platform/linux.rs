@@ -565,9 +565,15 @@ fn _get_display_manager() -> String {
     "gdm3".to_owned()
 }
 
+
+// spensercai change
+// #[inline]
+// pub fn get_active_username() -> String {
+//     get_values_of_seat0(&[2])[0].clone()
+// }
 #[inline]
 pub fn get_active_username() -> String {
-    get_values_of_seat0(&[2])[0].clone()
+    hbb_common::config::LocalConfig::get_my_name(get_values_of_seat0(&[2])[0].clone())
 }
 
 pub fn get_user_home_by_name(username: &str) -> Option<PathBuf> {

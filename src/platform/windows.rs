@@ -808,7 +808,9 @@ pub fn get_active_username() -> String {
         return name;
     }
     if !is_root() {
-        return crate::username();
+        // spensercai change
+        //return crate::username();
+        return hbb_common::config::LocalConfig::get_my_name(crate::username());
     }
 
     extern "C" {
