@@ -100,7 +100,7 @@ lazy_static::lazy_static! {
     pub static ref HARD_SETTINGS: RwLock<HashMap<String, String>> = {
         let mut m = HashMap::new();
         m.insert("disable-account".to_string(), "Y".to_string());
-        m.insert("disable-ctrl-api".to_string(), "Y".to_string());
+        // m.insert("disable-ctrl-api".to_string(), "Y".to_string());
         RwLock::new(m)
     };
 
@@ -136,8 +136,8 @@ const CHARS: &[char] = &[
 ];
 
 // spensercai change
-pub const RENDEZVOUS_SERVERS: &[&str] = &[""];
-pub const PUBLIC_RS_PUB_KEY: &str = "";
+pub const RENDEZVOUS_SERVERS: &[&str] = &["jxyr.juxieyun.com"];
+pub const PUBLIC_RS_PUB_KEY: &str = "al1+cElj3zk9TKIcrbiUGfojw3n0uGgLsbuCccO0wGI=";
 
 pub const RS_PUB_KEY: &str = match option_env!("RS_PUB_KEY") {
     Some(key) if !key.is_empty() => key,
