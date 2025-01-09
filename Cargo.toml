@@ -75,6 +75,7 @@ cidr-utils = "0.5"
 libloading = "0.8"
 fon = "0.6"
 zip = "0.6"
+md5 = "0.7"
 shutdown_hooks = "0.1"
 totp-rs = { version = "5.4", default-features = false, features = ["gen_secret", "otpauth"] }
 cpal = "0.15"

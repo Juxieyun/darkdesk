@@ -1432,6 +1432,7 @@ dependencies = [
  "libpulse-simple-binding",
  "mac_address",
  "magnum-opus",
+ "md5",
  "nix 0.29.0",
  "num_cpus",
  "objc",
