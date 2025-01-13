@@ -1552,6 +1552,9 @@ impl<T: InvokeUiSession> Remote<T> {
                         #[cfg(feature = "flutter")]
                         {
                             if elevated && keyboard {
+                                // spensercai change
+                                // todo：maybe add
+                                // plugin_tools::send_reboot_client_with_admin();
                                 self.handler.msgbox(
                                     "on-foreground-elevated",
                                     "Prompt",
