@@ -9,7 +9,7 @@ pub fn call_handler(action: &str, payload: &serde_json::Value) -> String {
     match action {
         "get_temporary_password" => get_temporary_password(payload),
         // spensercai todo
-        // "create_new_connect" => create_new_connect(payload),
+        "create_new_connect" => create_new_connect(payload),
         "get_server_status" => get_server_status(payload),
         "set_custom_server" => set_custom_server(payload),
         "get_connection_status" => get_connection_status(payload),
@@ -78,38 +78,38 @@ fn check_payload_format(payload: &serde_json::Value, keys: Vec<&str>) -> bool {
 }
 
 // spensercai todo
-// fn create_new_connect(payload: &serde_json::Value) -> String {
-//     if !check_payload_format(
-//         payload,
-//         vec!["type", "id", "co_name", "my_name", "temporary_password"],
-//     ) {
-//         return payload_args_format_error();
-//     }
-//     let connect_type = payload["type"].as_str().unwrap();
-//     let passed_id = payload["id"].as_str().unwrap();
-//     let co_name = payload["co_name"].as_str().unwrap();
-//     let my_name=payload["my_name"].as_str().unwrap();
-//     let temp_paswd = payload["temporary_password"].as_str().unwrap();
-//     let remote_id = ui_interface::handle_relay_id(&passed_id);
-//     let my_id = ipc::get_id();
-//     let force_relay = passed_id != remote_id;
-//     if remote_id == my_id {
-//         let resp = get_resp(0, "禁止与自己建立连接", &serde_json::Value::Null);
-//         return resp;
-//     }
-//     // 写入config spensercai todo
-//     // hbb_common::config::LocalConfig::set_my_name(my_name);
-//     crate::ui_interface::set_peer_option(remote_id.clone().into(), "alias".into(), co_name.into());
-//     hbb_common::config::LocalConfig::set_remote_id(&remote_id);
-//     ui_interface::new_remote_with_passwd(
-//         remote_id.to_string(),
-//         connect_type.to_string(),
-//         force_relay,
-//         temp_paswd.to_string(),
-//     );
-//     let resp = get_resp(1, "", &serde_json::Value::Null);
-//     return resp;
-// }
+fn create_new_connect(payload: &serde_json::Value) -> String {
+    if !check_payload_format(
+        payload,
+        vec!["type", "id", "co_name", "my_name", "temporary_password"],
+    ) {
+        return payload_args_format_error();
+    }
+    let connect_type = payload["type"].as_str().unwrap();
+    let passed_id = payload["id"].as_str().unwrap();
+    let co_name = payload["co_name"].as_str().unwrap();
+    let my_name=payload["my_name"].as_str().unwrap();
+    let temp_paswd = payload["temporary_password"].as_str().unwrap();
+    let remote_id = ui_interface::handle_relay_id(&passed_id);
+    let my_id = ipc::get_id();
+    let force_relay = passed_id != remote_id;
+    if remote_id == my_id {
+        let resp = get_resp(0, "禁止与自己建立连接", &serde_json::Value::Null);
+        return resp;
+    }
+    // 写入config spensercai todo
+    // hbb_common::config::LocalConfig::set_my_name(my_name);
+    crate::ui_interface::set_peer_option(remote_id.clone().into(), "alias".into(), co_name.into());
+    hbb_common::config::LocalConfig::set_remote_id(&remote_id);
+    ui_interface::new_remote_with_passwd(
+        remote_id.to_string(),
+        connect_type.to_string(),
+        force_relay,
+        temp_paswd.to_string(),
+    );
+    let resp = get_resp(1, "", &serde_json::Value::Null);
+    return resp;
+}
 
 /*
 response:
