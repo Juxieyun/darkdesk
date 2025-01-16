@@ -8,12 +8,13 @@ use hbb_common::sysinfo::System;
 pub fn call_handler(action: &str, payload: &serde_json::Value) -> String {
     match action {
         "get_temporary_password" => get_temporary_password(payload),
-        // spensercai todo
         "create_new_connect" => create_new_connect(payload),
         "get_server_status" => get_server_status(payload),
         "set_custom_server" => set_custom_server(payload),
         "get_connection_status" => get_connection_status(payload),
         "close_connection_by_id" => close_connection_by_id(payload),
+        "set_auto_recording" => set_auto_recording(payload),
+        "get_auto_recording" => get_auto_recording(payload),
         _ => {
             let resp = get_resp(0, "wrong action", &serde_json::Value::Null);
             return resp;
@@ -98,7 +99,7 @@ fn create_new_connect(payload: &serde_json::Value) -> String {
         return resp;
     }
     // 写入config spensercai todo
-    // hbb_common::config::LocalConfig::set_my_name(my_name);
+    hbb_common::config::LocalConfig::set_my_name(my_name);
     crate::ui_interface::set_peer_option(remote_id.clone().into(), "alias".into(), co_name.into());
     hbb_common::config::LocalConfig::set_remote_id(&remote_id);
     ui_interface::new_remote_with_passwd(
@@ -179,5 +180,35 @@ fn set_custom_server(payload: &serde_json::Value) -> String {
     config_options.insert(String::from("key"), server_key.to_string());
     ui_interface::set_options(config_options);
     let resp = get_resp(1, "", &serde_json::Value::Null);
+    return resp;
+}
+
+// recording_type: "in" | "out"
+// auto_recording "Y" | "N"
+fn set_auto_recording(payload: &serde_json::Value) -> String {
+    if !check_payload_format(payload, vec!["recording_type",]) {
+        return payload_args_format_error();
+    }
+    let recording_type = payload["recording_type"].as_str().unwrap();
+    let auto_recording = payload["auto_recording"].as_str().unwrap();
+    if auto_recording != "Y" && auto_recording != "N" {
+        let resp = get_resp(0, "auto_recording error,only Y or N", &serde_json::Value::Null);
+        return resp;
+    }
+    if recording_type == "in" {
+        hbb_common::config::Config::set_option("allow-auto-record-incoming".to_string(), auto_recording.to_string());
+    } else if recording_type == "out" {
+        hbb_common::config::Config::set_option("allow-auto-record-outgoing".to_string(), auto_recording.to_string());
+    } else {
+        let resp = get_resp(0, "recording_type error,only in or out", &serde_json::Value::Null);
+    }
+    let resp = get_resp(1, "", &serde_json::Value::Null);
+    return resp;
+}
+
+fn get_auto_recording(_: &serde_json::Value) -> String {
+    let auto_recording_in = hbb_common::config::option2bool("allow-auto-record-incoming",&hbb_common::config::Config::get_option("allow-auto-record-incoming"));
+    let auto_recording_out = hbb_common::config::option2bool("allow-auto-record-outgoing",&hbb_common::config::Config::get_option("allow-auto-record-outgoing"));
+    let resp = get_resp(1, "", &serde_json::json!({"auto_recording_in": auto_recording_in, "auto_recording_out": auto_recording_out}));
     return resp;
 }
