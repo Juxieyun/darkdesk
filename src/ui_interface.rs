@@ -1053,8 +1053,12 @@ pub fn new_remote(id: String, remote_type: String, force_relay: bool) {
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn new_remote_with_passwd(id: String, remote_type: String, force_relay: bool, passwd: String) {
     let mut lock = CHILDREN.lock().unwrap();
-    let mut args = vec![format!("--{}", remote_type), id.clone()];
-    args.push(passwd);
+    let mut args = vec![
+        format!("--{}", remote_type),
+        id.clone(),
+        format!("--password"),
+        passwd.clone(),
+    ];
     if force_relay {
         args.push("--relay".to_string());
     }
