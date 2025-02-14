@@ -8,6 +8,8 @@ use hbb_common::sysinfo::System;
 pub fn call_handler(action: &str, payload: &serde_json::Value) -> String {
     match action {
         "get_temporary_password" => get_temporary_password(payload),
+        "update_temporary_password" => update_temporary_password(payload),
+        // spensercai todo
         "create_new_connect" => create_new_connect(payload),
         "get_server_status" => get_server_status(payload),
         "set_custom_server" => set_custom_server(payload),
@@ -21,8 +23,6 @@ pub fn call_handler(action: &str, payload: &serde_json::Value) -> String {
         }
     }
 }
-
-
 
 // Tool functions ----------------------:
 fn get_resp(code: i32, msg: &str, data: &serde_json::Value) -> String {
@@ -39,10 +39,23 @@ fn get_resp(code: i32, msg: &str, data: &serde_json::Value) -> String {
 // 返回参数格式错误resp
 fn payload_args_format_error() -> String {
     return get_resp(-1, "payload args format error", &serde_json::Value::Null);
-} 
+}
 
 // Handler functions ----------------------:
 fn get_temporary_password(payload: &serde_json::Value) -> String {
+    if !check_payload_format(payload, vec!["my_name"]) {
+        return payload_args_format_error();
+    }
+    let my_name = payload["my_name"].as_str().unwrap();
+    // spensercai todo
+    hbb_common::config::LocalConfig::set_my_name(my_name);
+    let passwd = hbb_common::password_security::temporary_password();
+    let data = serde_json::json!({ "temporary_password": passwd, "id": ipc::get_id() });
+    let resp = get_resp(1, "", &data);
+    return resp;
+}
+
+fn update_temporary_password(payload: &serde_json::Value) -> String {
     if !check_payload_format(payload, vec!["my_name"]) {
         return payload_args_format_error();
     }
@@ -89,7 +102,7 @@ fn create_new_connect(payload: &serde_json::Value) -> String {
     let connect_type = payload["type"].as_str().unwrap();
     let passed_id = payload["id"].as_str().unwrap();
     let co_name = payload["co_name"].as_str().unwrap();
-    let my_name=payload["my_name"].as_str().unwrap();
+    let my_name = payload["my_name"].as_str().unwrap();
     let temp_paswd = payload["temporary_password"].as_str().unwrap();
     let remote_id = ui_interface::handle_relay_id(&passed_id);
     let my_id = ipc::get_id();
@@ -183,32 +196,86 @@ fn set_custom_server(payload: &serde_json::Value) -> String {
     return resp;
 }
 
-// recording_type: "in" | "out"
-// auto_recording "Y" | "N"
+// video_save_directory: "/path/to/save"
+// allow_auto_record_incoming: "Y" or "N"
+// allow_auto_record_outgoing: "Y" or "N"
 fn set_auto_recording(payload: &serde_json::Value) -> String {
-    if !check_payload_format(payload, vec!["recording_type",]) {
+    if !check_payload_format(
+        payload,
+        vec![
+            "video_save_directory",
+            "allow_auto_record_incoming",
+            "allow_auto_record_outgoing",
+        ],
+    ) {
         return payload_args_format_error();
     }
-    let recording_type = payload["recording_type"].as_str().unwrap();
-    let auto_recording = payload["auto_recording"].as_str().unwrap();
-    if auto_recording != "Y" && auto_recording != "N" {
-        let resp = get_resp(0, "auto_recording error,only Y or N", &serde_json::Value::Null);
+    let video_save_directory = payload["video_save_directory"].as_str().unwrap();
+    // allow-auto-record-incoming
+    let allow_auto_record_incoming = payload["allow_auto_record_incoming"].as_str().unwrap();
+    // allow-auto-record-outgoing
+    let allow_auto_record_outgoing = payload["allow_auto_record_outgoing"].as_str().unwrap();
+
+    if video_save_directory.len() != 0 {
+        hbb_common::config::LocalConfig::set_option(
+            "video-save-directory".to_string(),
+            video_save_directory.to_string(),
+        );
+    }
+    // allow-auto-record-incoming MUST be "Y" or "N"
+    if allow_auto_record_incoming != "Y" && allow_auto_record_incoming != "N" {
+        let resp = get_resp(
+            0,
+            "allow_auto_record_incoming error,only Y or N",
+            &serde_json::Value::Null,
+        );
         return resp;
-    }
-    if recording_type == "in" {
-        hbb_common::config::Config::set_option("allow-auto-record-incoming".to_string(), auto_recording.to_string());
-    } else if recording_type == "out" {
-        hbb_common::config::Config::set_option("allow-auto-record-outgoing".to_string(), auto_recording.to_string());
     } else {
-        let resp = get_resp(0, "recording_type error,only in or out", &serde_json::Value::Null);
+        hbb_common::config::Config::set_option(
+            "allow-auto-record-incoming".to_string(),
+            allow_auto_record_incoming.to_string(),
+        );
     }
+
+    // allow-auto-record-outgoing MUST be "Y" or "N"
+    if allow_auto_record_outgoing != "Y" && allow_auto_record_outgoing != "N" {
+        let resp = get_resp(
+            0,
+            "allow_auto_record_outgoing error,only Y or N",
+            &serde_json::Value::Null,
+        );
+        return resp;
+    } else {
+        hbb_common::config::LocalConfig::set_option(
+            "allow-auto-record-outgoing".to_string(),
+            allow_auto_record_outgoing.to_string(),
+        );
+    }
+
     let resp = get_resp(1, "", &serde_json::Value::Null);
     return resp;
 }
 
 fn get_auto_recording(_: &serde_json::Value) -> String {
-    let auto_recording_in = hbb_common::config::option2bool("allow-auto-record-incoming",&hbb_common::config::Config::get_option("allow-auto-record-incoming"));
-    let auto_recording_out = hbb_common::config::option2bool("allow-auto-record-outgoing",&hbb_common::config::Config::get_option("allow-auto-record-outgoing"));
-    let resp = get_resp(1, "", &serde_json::json!({"auto_recording_in": auto_recording_in, "auto_recording_out": auto_recording_out}));
+    let auto_recording_in = hbb_common::config::option2bool(
+        "allow-auto-record-incoming",
+        &hbb_common::config::LocalConfig::get_option("allow-auto-record-incoming"),
+    );
+    let auto_recording_out = hbb_common::config::option2bool(
+        "allow-auto-record-outgoing",
+        &hbb_common::config::LocalConfig::get_option("allow-auto-record-outgoing"),
+    );
+    let video_save_directory: String =
+        hbb_common::config::LocalConfig::get_option("video-save-directory");
+    // 读取video-save-directory
+
+    let resp = get_resp(
+        1,
+        "",
+        &serde_json::json!({
+            "auto_recording_in": auto_recording_in, 
+            "auto_recording_out": auto_recording_out,
+            "video_save_directory": video_save_directory}),
+    );
     return resp;
 }

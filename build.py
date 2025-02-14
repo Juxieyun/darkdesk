@@ -398,12 +398,15 @@ def build_flutter_dmg(version, features):
     system2(
         "cp target/release/liblibdarkdesk.dylib target/release/libdarkdesk.dylib")
     os.chdir('flutter')
-    system2('flutter build macos --release')
+    print("Please run flutter build macos --release manually!!!")
+    # system2('flutter build macos --release')
+    # print("Building flutter finished")
     '''
     system2(
         "create-dmg --volname \"DarkDesk Installer\" --window-pos 200 120 --window-size 800 400 --icon-size 100 --app-drop-link 600 185 --icon DarkDesk.app 200 190 --hide-extension DarkDesk.app darkdesk.dmg ./build/macos/Build/Products/Release/DarkDesk.app")
     os.rename("darkdesk.dmg", f"../darkdesk-{version}.dmg")
     '''
+    print("Building dmg finished")
     os.chdir("..")
 
 
