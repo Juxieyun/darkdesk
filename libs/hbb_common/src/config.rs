@@ -88,7 +88,7 @@ lazy_static::lazy_static! {
             m.insert("hide-help-cards".to_string(), "Y".to_string());
             RwLock::new(m)
         }
-    
+
         #[cfg(not(feature = "easy_client"))]
         {
             Default::default()
@@ -104,9 +104,9 @@ lazy_static::lazy_static! {
         RwLock::new(m)
     };
 
-    
-    
-    
+
+
+
 }
 
 lazy_static::lazy_static! {
@@ -560,7 +560,7 @@ impl Config {
     fn load_<T: serde::Serialize + serde::de::DeserializeOwned + Default + std::fmt::Debug>(
         suffix: &str,
     ) -> T {
-        let file = Self::file_(suffix);
+        let file: PathBuf = Self::file_(suffix);
         let cfg = load_path(file);
         if suffix.is_empty() {
             log::trace!("{:?}", cfg);
@@ -1577,7 +1577,7 @@ impl LocalConfig {
         LOCAL_CONFIG.read().unwrap().remote_id.clone()
     }
 
-    pub fn set_my_name(my_name:&str) {
+    pub fn set_my_name(my_name: &str) {
         log::info!("set_my_name: {}", my_name);
         let mut config = LOCAL_CONFIG.write().unwrap();
         if my_name == config.my_name {
@@ -1588,7 +1588,7 @@ impl LocalConfig {
         config.store();
     }
 
-    pub fn get_my_name(tmp_name:String) -> String {
+    pub fn get_my_name(tmp_name: String) -> String {
         let mut my_name = LOCAL_CONFIG.read().unwrap().my_name.clone();
         if my_name.is_empty() {
             my_name = tmp_name;
@@ -1770,7 +1770,7 @@ impl UserDefaultConfig {
             #[cfg(any(target_os = "android", target_os = "ios"))]
             keys::OPTION_VIEW_STYLE => self.get_string(key, "adaptive", vec!["original"]),
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            keys::OPTION_VIEW_STYLE => self.get_string(key, "original", vec!["adaptive"]),
+            keys::OPTION_VIEW_STYLE => self.get_string(key, "adaptive", vec!["original"]),
             keys::OPTION_SCROLL_STYLE => self.get_string(key, "scrollauto", vec!["scrollbar"]),
             keys::OPTION_IMAGE_QUALITY => {
                 self.get_string(key, "balanced", vec!["best", "low", "custom"])
