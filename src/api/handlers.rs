@@ -140,7 +140,7 @@ response:
 */
 fn get_connection_status(_: &serde_json::Value) -> String {
     let s = System::new_all();
-    let target_process_name = "droplet-rc-client";
+    let target_process_name = "DarkDesk";
     let mut processes = Vec::<serde_json::Value>::new();
     for process in s.processes_by_name(target_process_name) {
         if process.cmd().contains(&"--connect".to_owned()) {
