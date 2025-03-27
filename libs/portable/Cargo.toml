@@ -24,7 +24,7 @@ native-windows-gui = { version = "1.0", default-features = false, features = [
 LegalCopyright = "Copyright © 2024 Purslane Ltd. All rights reserved."
 ProductName = "DarkDesk"
 OriginalFilename = "darkdesk.exe"
-FileDescription = "DarkDesk Remote Desktop"
+FileDescription = "DarkDesk"
 #ProductVersion = ""
 
 [target.'cfg(target_os="windows")'.build-dependencies]
