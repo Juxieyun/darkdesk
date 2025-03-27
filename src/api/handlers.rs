@@ -1,6 +1,6 @@
 use crate::{ipc, plugin_tools, ui_interface};
 // use hbb_common::{self, config::Config};
-use hbb_common;
+use hbb_common::{self, log};
 use std::collections::HashMap;
 //use sysinfo::{ProcessExt, System, SystemExt};
 use hbb_common::sysinfo::System;
@@ -112,15 +112,31 @@ fn create_new_connect(payload: &serde_json::Value) -> String {
         return resp;
     }
     // 写入config spensercai todo
-    hbb_common::config::LocalConfig::set_my_name(my_name);
+    // hbb_common::config::LocalConfig::set_my_name(my_name);
     crate::ui_interface::set_peer_option(remote_id.clone().into(), "alias".into(), co_name.into());
     hbb_common::config::LocalConfig::set_remote_id(&remote_id);
-    ui_interface::new_remote_with_passwd(
-        remote_id.to_string(),
-        connect_type.to_string(),
-        force_relay,
-        temp_paswd.to_string(),
-    );
+
+    // 使用run_me直接传递参数，包括密码
+    // 格式应为: --connect ID --password PASSWORD
+    let mut args = vec![];
+    args.push(format!("--{}", connect_type)); // 例如 "--connect"
+    args.push(remote_id.to_string()); // 例如 "1148838485"
+    args.push("--password".to_string()); // "--password"
+    args.push(temp_paswd.to_string()); // 例如 "2hrbuq"
+
+    if force_relay {
+        args.push("--relay".to_string());
+    }
+
+    match crate::run_me(args) {
+        Ok(_) => {
+            log::info!("Successfully started remote connection");
+        }
+        Err(err) => {
+            log::error!("Failed to spawn remote with password: {}", err);
+        }
+    }
+
     let resp = get_resp(1, "", &serde_json::Value::Null);
     return resp;
 }
@@ -144,11 +160,19 @@ fn get_connection_status(_: &serde_json::Value) -> String {
     let mut processes = Vec::<serde_json::Value>::new();
     for process in s.processes_by_name(target_process_name) {
         if process.cmd().contains(&"--connect".to_owned()) {
+            let cmd = process.cmd();
+            let mut peer_id = "";
+            for i in 0..cmd.len() {
+                if cmd[i] == "--connect" && i + 1 < cmd.len() {
+                    peer_id = &cmd[i + 1];
+                    break;
+                }
+            }
             processes.push(serde_json::json!({
                 "pid": process.pid().to_string(),
                 "name": process.name(),
                 "type": "controller",
-                "peer_id": process.cmd()[process.cmd().len() - 2]
+                "peer_id": peer_id
             }));
         }
         if process.cmd().contains(&"--cm".to_owned()) {
