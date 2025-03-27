@@ -2,7 +2,7 @@
 name = "darkdesk-portable-packer"
 version = "1.3.3"
 edition = "2021"
-description = "DarkDesk Remote Desktop"
+description = "DarkDesk"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -15,7 +15,10 @@ md5 = "0.7"
 winapi = { version = "0.3", features = ["winbase"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-native-windows-gui = {version = "1.0", default-features = false, features = ["animation-timer", "image-decoder"]}
+native-windows-gui = { version = "1.0", default-features = false, features = [
+    "animation-timer",
+    "image-decoder",
+] }
 
 [package.metadata.winres]
 LegalCopyright = "Copyright © 2024 Purslane Ltd. All rights reserved."
@@ -26,6 +29,4 @@ FileDescription = "DarkDesk Remote Desktop"
 
 [target.'cfg(target_os="windows")'.build-dependencies]
 winres = "0.1"
-winapi = { version = "0.3", features = [ "winnt", "pdh", "synchapi" ] }
-
-
+winapi = { version = "0.3", features = ["winnt", "pdh", "synchapi"] }
