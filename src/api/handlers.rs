@@ -399,13 +399,6 @@ response:
 }
 */
 fn get_connection_status(_: &serde_json::Value) -> String {
-    #[cfg(target_os = "windows")]
-    {
-        if let Some(session_id) = crate::platform::get_current_process_session_id() {
-            log::info!("get_connection_status running in Session {}", session_id);
-        }
-    }
-
     // Use System::new_all() to ensure we get all processes
     let mut s = System::new_all();
     s.refresh_all(); // Refresh to get latest process info
