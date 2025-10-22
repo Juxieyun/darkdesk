@@ -306,6 +306,15 @@ fn check_payload_format(payload: &serde_json::Value, keys: Vec<&str>) -> bool {
     }
     return true;
 }
+// 检查key是否存在
+fn check_key_exists(payload: &serde_json::Value, key: Vec<&str>) -> bool {
+    for k in key {
+        if payload.get(k).is_none() {
+            return false;
+        }
+    }
+    return true;
+}
 
 // Helper function to check if running in Service (Session 0)
 #[cfg(target_os = "windows")]
@@ -526,10 +535,10 @@ fn set_custom_server(payload: &serde_json::Value) -> String {
 }
 
 // video_save_directory: "/path/to/save"
-// allow_auto_record_incoming: "Y" or "N"
-// allow_auto_record_outgoing: "Y" or "N"
+// allow_auto_record_incoming: boolean
+// allow_auto_record_outgoing: boolean
 fn set_auto_recording(payload: &serde_json::Value) -> String {
-    if !check_payload_format(
+    if !check_key_exists(
         payload,
         vec![
             "video_save_directory",
@@ -541,9 +550,13 @@ fn set_auto_recording(payload: &serde_json::Value) -> String {
     }
     let video_save_directory = payload["video_save_directory"].as_str().unwrap();
     // allow-auto-record-incoming
-    let allow_auto_record_incoming = payload["allow_auto_record_incoming"].as_str().unwrap();
+    let allow_auto_record_incoming = payload["allow_auto_record_incoming"]
+        .as_bool()
+        .unwrap_or(false);
     // allow-auto-record-outgoing
-    let allow_auto_record_outgoing = payload["allow_auto_record_outgoing"].as_str().unwrap();
+    let allow_auto_record_outgoing = payload["allow_auto_record_outgoing"]
+        .as_bool()
+        .unwrap_or(false);
 
     if video_save_directory.len() != 0 {
         hbb_common::config::LocalConfig::set_option(
@@ -551,46 +564,26 @@ fn set_auto_recording(payload: &serde_json::Value) -> String {
             video_save_directory.to_string(),
         );
     }
-    // allow-auto-record-incoming MUST be "Y" or "N"
-    if allow_auto_record_incoming != "Y" && allow_auto_record_incoming != "N" {
-        let resp = get_resp(
-            0,
-            "allow_auto_record_incoming error,only Y or N",
-            &serde_json::Value::Null,
-        );
-        return resp;
-    } else {
-        hbb_common::config::Config::set_option(
-            "allow-auto-record-incoming".to_string(),
-            allow_auto_record_incoming.to_string(),
-        );
-    }
+    hbb_common::config::Config::set_option(
+        "allow-auto-record-incoming".to_string(),
+        if allow_auto_record_incoming { "Y" } else { "N" }.to_string(),
+    );
 
-    // allow-auto-record-outgoing MUST be "Y" or "N"
-    if allow_auto_record_outgoing != "Y" && allow_auto_record_outgoing != "N" {
-        let resp = get_resp(
-            0,
-            "allow_auto_record_outgoing error,only Y or N",
-            &serde_json::Value::Null,
-        );
-        return resp;
-    } else {
-        hbb_common::config::LocalConfig::set_option(
-            "allow-auto-record-outgoing".to_string(),
-            allow_auto_record_outgoing.to_string(),
-        );
-    }
+    hbb_common::config::LocalConfig::set_option(
+        "allow-auto-record-outgoing".to_string(),
+        if allow_auto_record_outgoing { "Y" } else { "N" }.to_string(),
+    );
 
     let resp = get_resp(1, "", &serde_json::Value::Null);
     return resp;
 }
 
 fn get_auto_recording(_: &serde_json::Value) -> String {
-    let auto_recording_in = hbb_common::config::option2bool(
+    let allow_auto_record_incoming = hbb_common::config::option2bool(
         "allow-auto-record-incoming",
         &hbb_common::config::LocalConfig::get_option("allow-auto-record-incoming"),
     );
-    let auto_recording_out = hbb_common::config::option2bool(
+    let allow_auto_record_outgoing = hbb_common::config::option2bool(
         "allow-auto-record-outgoing",
         &hbb_common::config::LocalConfig::get_option("allow-auto-record-outgoing"),
     );
