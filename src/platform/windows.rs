@@ -453,10 +453,11 @@ fn service_main(arguments: Vec<OsString>) {
 }
 
 pub fn start_os_service() {
-    if let Err(e) =
-        windows_service::service_dispatcher::start(crate::get_app_name(), ffi_service_main)
-    {
-        log::error!("start_service failed: {}", e);
+    let app_name = crate::get_app_name();
+    log::info!("Starting service with name: {}", app_name);
+    if let Err(e) = windows_service::service_dispatcher::start(&app_name, ffi_service_main) {
+        log::error!("start_service failed for '{}': {:?}", app_name, e);
+        log::error!("Make sure the service is registered with: sc create {} binpath= \"<exe_path> --service\"", app_name);
     }
 }
 
@@ -1095,7 +1096,15 @@ pub fn check_update_broker_process() -> ResultType<()> {
 fn get_install_info_with_subkey(subkey: String) -> (String, String, String, String) {
     let mut path = get_reg_of(&subkey, "InstallLocation");
     if path.is_empty() {
-        path = get_default_install_path();
+        // path = get_default_install_path();
+        // 1. 优先尝试当前 exe 路径
+        path = match std::env::current_exe() {
+            Ok(p) => p
+                .parent()
+                .map(|dir| dir.to_string_lossy().to_string())
+                .unwrap_or_default(),
+            Err(_) => get_default_install_path(),
+        };
     }
     path = path.trim_end_matches('\\').to_owned();
     let start_menu = format!(
@@ -2208,7 +2217,7 @@ if exist \"{tray_shortcut}\" del /f /q \"{tray_shortcut}\"
         log::debug!("{err}");
         return true;
     }
-    run_after_run_cmds(false);
+    //  run_after_run_cmds(true);
     std::process::exit(0);
 }
 
@@ -2241,7 +2250,7 @@ fn get_import_config(exe: &str) -> String {
     format!("
 sc stop {app_name}
 sc delete {app_name}
-sc create {app_name} binpath= \"\\\"{exe}\\\" --import-config \\\"{config_path}\\\"\" start= auto DisplayName= \"{app_name} Service\"
+sc create {app_name} binpath= \"\\\"{exe}\\\" --import-config \\\"{config_path}\\\"\" start= demand DisplayName= \"{app_name} Service\"
 sc start {app_name}
 sc stop {app_name}
 sc delete {app_name}
@@ -2262,7 +2271,7 @@ if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{ap
 ", app_name = crate::get_app_name())
     } else {
         format!("
-sc create {app_name} binpath= \"\\\"{exe}\\\" --service\" start= auto DisplayName= \"{app_name} Service\"
+sc create {app_name} binpath= \"\\\"{exe}\\\" --service\" start= demand DisplayName= \"{app_name} Service\"
 sc start {app_name}
 ",
     app_name = crate::get_app_name())

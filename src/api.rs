@@ -1,7 +1,7 @@
 /*
  * @Author: SpenserCai
  * @Date: 2024-11-22 17:08:06
- * @version: 
+ * @version:
  * @LastEditors: SpenserCai
  * @LastEditTime: 2024-11-22 20:58:02
  * @Description: file content
@@ -38,24 +38,47 @@ pub async fn run() {
 fn handle_connection(mut stream: TcpStream) {
     // Read incoming data from the client
     let mut buffer = [0; 1024];
-    stream
-        .read(&mut buffer)
-        .expect("Failed to read from stream");
-    let received_data = String::from_utf8_lossy(&buffer);
+    // stream
+    //     .read(&mut buffer)
+    //     .expect("Failed to read from stream");
+    // let received_data = String::from_utf8_lossy(&buffer);
+    let bytes_read = match stream.read(&mut buffer) {
+        Ok(0) => {
+            println!("客户端断开连接");
+            return;
+        }
+        Ok(n) => n,
+        Err(e) => {
+            eprintln!("读取流失败: {}", e);
+            return;
+        }
+    };
+    let received_data = String::from_utf8_lossy(&buffer[..bytes_read]);
     let trimmed_data = received_data.trim_end_matches(char::from(0));
     println!("Received data: {}", trimmed_data);
-
     let parsed_result = serde_json::from_str::<serde_json::Value>(&trimmed_data);
     let data = match parsed_result {
         Ok(v) => v,
-        Err(_) => serde_json::Value::Null,
+        Err(e) => {
+            eprintln!("JSON 解析失败: {}", e);
+            let _ = stream.write_all(b"{\"error\": \"invalid json\"}");
+            return;
+        }
     };
-    println!("parsed_data['action']: {}", data["action"]);
-    println!("parsed_data['payload']: {}", data["payload"]);
 
-    let response = handlers::call_handler(data["action"].as_str().unwrap(), &data["payload"]);
-    stream
-        .write(response.as_bytes())
-        .expect("Failed to write to stream");
-    stream.flush().expect("Failed to flush stream");
+    let action = match data["action"].as_str() {
+        Some(a) => a,
+        None => {
+            eprintln!("请求缺少 'action' 字段");
+            let _ = stream.write_all(b"{\"error\": \"missing action\"}");
+            return;
+        }
+    };
+
+    let response = handlers::call_handler(action, &data["payload"]);
+    if let Err(e) = stream.write_all(response.as_bytes()) {
+        eprintln!("写入响应失败: {}", e);
+        return;
+    }
+        stream.flush().expect("Failed to flush stream");
 }

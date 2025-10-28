@@ -264,6 +264,10 @@ pub fn core_main() -> Option<Vec<String>> {
             return None;
         } else if args[0] == "--service" {
             log::info!("start --service");
+            if !is_disable_ctrl_api() {
+                log::info!("flutter control api start");
+                api::run();
+            }
             crate::start_os_service();
             return None;
         } else if args[0] == "--server" {
