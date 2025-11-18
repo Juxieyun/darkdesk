@@ -270,6 +270,14 @@ pub enum Data {
     HwCodecConfig(Option<String>),
     RemoveTrustedDevices(Vec<Bytes>),
     ClearTrustedDevices,
+    // Custom: Request to create a new remote connection
+    CreateRemoteConnection {
+        id: String,
+        remote_type: String,
+        force_relay: bool,
+        password: String,
+        alias: String,
+    },
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -656,6 +664,24 @@ async fn handle(data: Data, stream: &mut Connection) {
         }
         Data::ClearTrustedDevices => {
             Config::clear_trusted_devices();
+        }
+        Data::CreateRemoteConnection {
+            id,
+            remote_type,
+            force_relay,
+            password,
+            alias,
+        } => {
+            log::info!("Received IPC request to create connection: id={}, type={}", id, remote_type);
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            {
+                // Set alias before creating connection
+                if !alias.is_empty() {
+                    crate::ui_interface::set_peer_option(id.clone(), "alias".into(), alias);
+                }
+                // Create the connection with password
+                crate::ui_interface::new_remote_with_passwd(id, remote_type, force_relay, password);
+            }
         }
         _ => {}
     }

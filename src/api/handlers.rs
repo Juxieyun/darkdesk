@@ -91,6 +91,45 @@ fn check_payload_format(payload: &serde_json::Value, keys: Vec<&str>) -> bool {
     return true;
 }
 
+// Helper function to send IPC message to GUI/Tray to create connection
+fn send_create_connection_ipc(
+    remote_id: String,
+    remote_type: String,
+    force_relay: bool,
+    password: String,
+    alias: String,
+) -> Result<(), String> {
+    use hbb_common::tokio;
+    
+    log::info!("Sending IPC message to create connection: id={}, type={}", remote_id, remote_type);
+    
+    // Send IPC message to the main GUI/Tray process
+    let data = ipc::Data::CreateRemoteConnection {
+        id: remote_id,
+        remote_type,
+        force_relay,
+        password,
+        alias,
+    };
+    
+    // Use tokio runtime to send async IPC message
+    let rt = tokio::runtime::Runtime::new().map_err(|e| format!("Failed to create runtime: {}", e))?;
+    rt.block_on(async {
+        // Connect to the main IPC server and send the message
+        match ipc::connect(1000, "").await {
+            Ok(mut conn) => {
+                if let Err(e) = conn.send(&data).await {
+                    return Err(format!("Failed to send IPC message: {}", e));
+                }
+                Ok(())
+            }
+            Err(e) => {
+                Err(format!("Failed to connect to IPC server: {}", e))
+            }
+        }
+    })
+}
+
 // spensercai todo
 fn create_new_connect(payload: &serde_json::Value) -> String {
     if !check_payload_format(
@@ -102,7 +141,7 @@ fn create_new_connect(payload: &serde_json::Value) -> String {
     let connect_type = payload["type"].as_str().unwrap();
     let passed_id = payload["id"].as_str().unwrap();
     let co_name = payload["co_name"].as_str().unwrap();
-    let my_name = payload["my_name"].as_str().unwrap();
+    let _my_name = payload["my_name"].as_str().unwrap();
     let temp_paswd = payload["temporary_password"].as_str().unwrap();
     let remote_id = ui_interface::handle_relay_id(&passed_id);
     let my_id = ipc::get_id();
@@ -113,27 +152,27 @@ fn create_new_connect(payload: &serde_json::Value) -> String {
     }
     // 写入config spensercai todo
     // hbb_common::config::LocalConfig::set_my_name(my_name);
-    crate::ui_interface::set_peer_option(remote_id.clone().into(), "alias".into(), co_name.into());
+    crate::ui_interface::set_peer_option(remote_id.into(), "alias".into(), co_name.into());
     hbb_common::config::LocalConfig::set_remote_id(&remote_id);
 
-    // 使用run_me直接传递参数，包括密码
-    // 格式应为: --connect ID --password PASSWORD
-    let mut args = vec![];
-    args.push(format!("--{}", connect_type)); // 例如 "--connect"
-    args.push(remote_id.to_string()); // 例如 "1148838485"
-    args.push("--password".to_string()); // "--password"
-    args.push(temp_paswd.to_string()); // 例如 "2hrbuq"
+    log::info!("=== create_new_connect: Sending IPC to GUI/Tray ===");
+    log::info!("Remote ID: {}, Type: {}, Force Relay: {}", remote_id, connect_type, force_relay);
 
-    if force_relay {
-        args.push("--relay".to_string());
-    }
-
-    match crate::run_me(args) {
+    // Send IPC message to GUI/Tray to create the connection
+    match send_create_connection_ipc(
+        remote_id.to_string(),
+        connect_type.to_string(),
+        force_relay,
+        temp_paswd.to_string(),
+        co_name.to_string(),
+    ) {
         Ok(_) => {
-            log::info!("Successfully started remote connection");
+            log::info!("Successfully sent IPC message to create connection");
         }
         Err(err) => {
-            log::error!("Failed to spawn remote with password: {}", err);
+            log::error!("Failed to send IPC message: {}", err);
+            let resp = get_resp(0, &format!("Failed to create connection: {}", err), &serde_json::Value::Null);
+            return resp;
         }
     }
 

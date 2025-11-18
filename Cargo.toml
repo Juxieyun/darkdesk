@@ -1,6 +1,6 @@
 [package]
 name = "darkdesk"
-version = "1.3.3"
+version = "1.3.5"
 authors = ["MachineS"]
 edition = "2021"
 build = "build.rs"
