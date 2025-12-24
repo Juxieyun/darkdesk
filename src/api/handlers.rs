@@ -6,10 +6,20 @@ use std::collections::HashMap;
 use hbb_common::sysinfo::System;
 
 pub fn call_handler(action: &str, payload: &serde_json::Value) -> String {
+    // If running in Service mode, forward all API calls to GUI/Tray via IPC
+    if is_running_in_service() {
+        log::info!(
+            "Service mode (Session 0): Forwarding API call '{}' to GUI/Tray via IPC",
+            action
+        );
+        return forward_to_user_session(action, payload);
+    }
+
+    // Running in user session, handle directly
+    log::info!("User session: Handling API call '{}' directly", action);
     match action {
         "get_temporary_password" => get_temporary_password(payload),
         "update_temporary_password" => update_temporary_password(payload),
-        // spensercai todo
         "create_new_connect" => create_new_connect(payload),
         "get_server_status" => get_server_status(payload),
         "set_custom_server" => set_custom_server(payload),
@@ -22,6 +32,86 @@ pub fn call_handler(action: &str, payload: &serde_json::Value) -> String {
             return resp;
         }
     }
+}
+
+// Forward API call to user session via IPC
+fn forward_to_user_session(action: &str, payload: &serde_json::Value) -> String {
+    use hbb_common::tokio;
+
+    let payload_str = payload.to_string();
+    let data = ipc::Data::ApiCall {
+        action: action.to_string(),
+        payload: payload_str,
+    };
+
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            log::error!("Failed to create tokio runtime: {}", e);
+            return get_resp(
+                -1,
+                &format!("Runtime error: {}", e),
+                &serde_json::Value::Null,
+            );
+        }
+    };
+
+    rt.block_on(async {
+        log::info!("Connecting to IPC server...");
+        match ipc::connect(2000, "").await {
+            Ok(mut conn) => {
+                log::info!("Connected to IPC server, sending API call...");
+                if let Err(e) = conn.send(&data).await {
+                    log::error!("Failed to send IPC API call: {}", e);
+                    return get_resp(
+                        -1,
+                        &format!("IPC send error: {}", e),
+                        &serde_json::Value::Null,
+                    );
+                }
+
+                log::info!("API call sent, waiting for response (timeout: 5000ms)...");
+                // Wait for response
+                match conn.next_timeout(5000).await {
+                    Ok(Some(ipc::Data::ApiResponse { response })) => {
+                        log::info!("Received IPC API response successfully");
+                        response
+                    }
+                    Ok(Some(other)) => {
+                        log::error!(
+                            "Unexpected IPC response type: {:?}",
+                            std::mem::discriminant(&other)
+                        );
+                        get_resp(-1, "Unexpected response type", &serde_json::Value::Null)
+                    }
+                    Ok(None) => {
+                        log::error!("IPC connection closed without response");
+                        get_resp(
+                            -1,
+                            "Connection closed without response",
+                            &serde_json::Value::Null,
+                        )
+                    }
+                    Err(e) => {
+                        log::error!("Failed to receive IPC response: {}", e);
+                        get_resp(
+                            -1,
+                            &format!("IPC receive error: {}", e),
+                            &serde_json::Value::Null,
+                        )
+                    }
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to connect to IPC server: {}", e);
+                get_resp(
+                    -1,
+                    &format!("IPC connect error: {}. Make sure GUI/Tray is running.", e),
+                    &serde_json::Value::Null,
+                )
+            }
+        }
+    })
 }
 
 // Tool functions ----------------------:
@@ -50,7 +140,8 @@ fn get_temporary_password(payload: &serde_json::Value) -> String {
     // spensercai todo
     hbb_common::config::LocalConfig::set_my_name(my_name);
     let passwd = hbb_common::password_security::temporary_password();
-    let data = serde_json::json!({ "temporary_password": passwd, "id": ipc::get_id() });
+    // Use Config::get_id() directly to avoid IPC call within IPC handler
+    let data = serde_json::json!({ "temporary_password": passwd, "id": hbb_common::config::Config::get_id() });
     let resp = get_resp(1, "", &data);
     return resp;
 }
@@ -64,7 +155,8 @@ fn update_temporary_password(payload: &serde_json::Value) -> String {
     hbb_common::config::LocalConfig::set_my_name(my_name);
     hbb_common::password_security::update_temporary_password();
     let passwd = hbb_common::password_security::temporary_password();
-    let data = serde_json::json!({ "temporary_password": passwd, "id": ipc::get_id() });
+    // Use Config::get_id() directly to avoid IPC call within IPC handler
+    let data = serde_json::json!({ "temporary_password": passwd, "id": hbb_common::config::Config::get_id() });
     let resp = get_resp(1, "", &data);
     return resp;
 }
@@ -91,46 +183,24 @@ fn check_payload_format(payload: &serde_json::Value, keys: Vec<&str>) -> bool {
     return true;
 }
 
-// Helper function to send IPC message to GUI/Tray to create connection
-fn send_create_connection_ipc(
-    remote_id: String,
-    remote_type: String,
-    force_relay: bool,
-    password: String,
-    alias: String,
-) -> Result<(), String> {
-    use hbb_common::tokio;
-    
-    log::info!("Sending IPC message to create connection: id={}, type={}", remote_id, remote_type);
-    
-    // Send IPC message to the main GUI/Tray process
-    let data = ipc::Data::CreateRemoteConnection {
-        id: remote_id,
-        remote_type,
-        force_relay,
-        password,
-        alias,
-    };
-    
-    // Use tokio runtime to send async IPC message
-    let rt = tokio::runtime::Runtime::new().map_err(|e| format!("Failed to create runtime: {}", e))?;
-    rt.block_on(async {
-        // Connect to the main IPC server and send the message
-        match ipc::connect(1000, "").await {
-            Ok(mut conn) => {
-                if let Err(e) = conn.send(&data).await {
-                    return Err(format!("Failed to send IPC message: {}", e));
-                }
-                Ok(())
-            }
-            Err(e) => {
-                Err(format!("Failed to connect to IPC server: {}", e))
-            }
-        }
-    })
+// Helper function to check if running in Service (Session 0)
+#[cfg(target_os = "windows")]
+fn is_running_in_service() -> bool {
+    if let Some(session_id) = crate::platform::get_current_process_session_id() {
+        // Session 0 is the service session
+        session_id == 0
+    } else {
+        false
+    }
 }
 
-// spensercai todo
+#[cfg(not(target_os = "windows"))]
+fn is_running_in_service() -> bool {
+    // On non-Windows platforms, check if running with --service flag
+    crate::is_server()
+}
+
+// Create new connection (only called in user session now)
 fn create_new_connect(payload: &serde_json::Value) -> String {
     if !check_payload_format(
         payload,
@@ -144,36 +214,47 @@ fn create_new_connect(payload: &serde_json::Value) -> String {
     let _my_name = payload["my_name"].as_str().unwrap();
     let temp_paswd = payload["temporary_password"].as_str().unwrap();
     let remote_id = ui_interface::handle_relay_id(&passed_id);
-    let my_id = ipc::get_id();
+    // Use Config::get_id() directly to avoid IPC call within IPC handler
+    let my_id = hbb_common::config::Config::get_id();
     let force_relay = passed_id != remote_id;
+
     if remote_id == my_id {
         let resp = get_resp(0, "禁止与自己建立连接", &serde_json::Value::Null);
         return resp;
     }
-    // 写入config spensercai todo
-    // hbb_common::config::LocalConfig::set_my_name(my_name);
-    crate::ui_interface::set_peer_option(remote_id.into(), "alias".into(), co_name.into());
+
+    // Set peer options
+    crate::ui_interface::set_peer_option(remote_id.to_string(), "alias".into(), co_name.into());
     hbb_common::config::LocalConfig::set_remote_id(&remote_id);
 
-    log::info!("=== create_new_connect: Sending IPC to GUI/Tray ===");
-    log::info!("Remote ID: {}, Type: {}, Force Relay: {}", remote_id, connect_type, force_relay);
+    log::info!(
+        "Creating connection: ID={}, Type={}, Force Relay={}",
+        remote_id,
+        connect_type,
+        force_relay
+    );
 
-    // Send IPC message to GUI/Tray to create the connection
-    match send_create_connection_ipc(
-        remote_id.to_string(),
-        connect_type.to_string(),
-        force_relay,
-        temp_paswd.to_string(),
-        co_name.to_string(),
-    ) {
-        Ok(_) => {
-            log::info!("Successfully sent IPC message to create connection");
-        }
-        Err(err) => {
-            log::error!("Failed to send IPC message: {}", err);
-            let resp = get_resp(0, &format!("Failed to create connection: {}", err), &serde_json::Value::Null);
-            return resp;
-        }
+    // Create connection directly (we're in user session)
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        crate::ui_interface::new_remote_with_passwd(
+            remote_id.to_string(),
+            connect_type.to_string(),
+            force_relay,
+            temp_paswd.to_string(),
+        );
+        log::info!("Connection created successfully");
+    }
+
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        log::error!("Direct connection creation not supported on mobile platforms");
+        let resp = get_resp(
+            0,
+            "Not supported on this platform",
+            &serde_json::Value::Null,
+        );
+        return resp;
     }
 
     let resp = get_resp(1, "", &serde_json::Value::Null);
@@ -194,34 +275,75 @@ response:
 }
 */
 fn get_connection_status(_: &serde_json::Value) -> String {
-    let s = System::new_all();
-    let target_process_name = "DarkDesk";
-    let mut processes = Vec::<serde_json::Value>::new();
-    for process in s.processes_by_name(target_process_name) {
-        if process.cmd().contains(&"--connect".to_owned()) {
-            let cmd = process.cmd();
-            let mut peer_id = "";
-            for i in 0..cmd.len() {
-                if cmd[i] == "--connect" && i + 1 < cmd.len() {
-                    peer_id = &cmd[i + 1];
-                    break;
-                }
-            }
-            processes.push(serde_json::json!({
-                "pid": process.pid().to_string(),
-                "name": process.name(),
-                "type": "controller",
-                "peer_id": peer_id
-            }));
-        }
-        if process.cmd().contains(&"--cm".to_owned()) {
-            processes.push(serde_json::json!({
-                "pid": process.pid().to_string(),
-                "name": process.name(),
-                "type": "controlled"
-            }));
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(session_id) = crate::platform::get_current_process_session_id() {
+            log::info!("get_connection_status running in Session {}", session_id);
         }
     }
+
+    // Use System::new_all() to ensure we get all processes
+    let mut s = System::new_all();
+    s.refresh_all(); // Refresh to get latest process info
+
+    let target_process_name = "DarkDesk";
+    let mut processes = Vec::<serde_json::Value>::new();
+    let mut total_count = 0;
+    let mut all_darkdesk_count = 0;
+
+    log::info!("Scanning for {} processes...", target_process_name);
+    log::info!("Total processes in system: {}", s.processes().len());
+
+    // Iterate through ALL processes to find DarkDesk
+    for (pid, process) in s.processes() {
+        let process_name = process.name();
+
+        // Check if it's a DarkDesk process (case-insensitive)
+        if process_name.to_lowercase().contains("darkdesk") {
+            all_darkdesk_count += 1;
+            let cmd = process.cmd();
+            log::info!(
+                "Found DarkDesk process: PID={}, name={}, cmd={:?}",
+                pid,
+                process_name,
+                cmd
+            );
+
+            if cmd.contains(&"--connect".to_owned()) {
+                let mut peer_id = "";
+                for i in 0..cmd.len() {
+                    if cmd[i] == "--connect" && i + 1 < cmd.len() {
+                        peer_id = &cmd[i + 1];
+                        break;
+                    }
+                }
+                log::info!("→ Controller process: peer_id={}", peer_id);
+                processes.push(serde_json::json!({
+                    "pid": pid.to_string(),
+                    "name": process_name,
+                    "type": "controller",
+                    "peer_id": peer_id
+                }));
+                total_count += 1;
+            } else if cmd.contains(&"--cm".to_owned()) {
+                log::info!("→ Controlled process (CM)");
+                processes.push(serde_json::json!({
+                    "pid": pid.to_string(),
+                    "name": process_name,
+                    "type": "controlled"
+                }));
+                total_count += 1;
+            } else {
+                log::debug!("→ Other DarkDesk process (not connection-related)");
+            }
+        }
+    }
+
+    log::info!(
+        "Found {} DarkDesk processes total, {} are connections",
+        all_darkdesk_count,
+        total_count
+    );
     let resp = get_resp(1, "", &serde_json::json!({"processes": processes}));
     return resp;
 }

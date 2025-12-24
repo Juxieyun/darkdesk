@@ -14,8 +14,13 @@ use std::thread;
 
 use hbb_common::{log, tokio};
 
-mod handlers;
+pub mod handlers;
 mod pool;
+
+// Public wrapper for handlers::call_handler
+pub fn call_handler(action: &str, payload: &serde_json::Value) -> String {
+    handlers::call_handler(action, payload)
+}
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn run() {
