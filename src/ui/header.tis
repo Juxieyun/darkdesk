@@ -462,7 +462,7 @@ function toggleMenuState() {
     var k = handler.get_keyboard_mode();
     values.push(k);
     var c = handler.get_option("codec-preference");
-    if (!c) c = "auto";
+    if (!c) c = "vp9";
     values.push(c);
     for (var el in $$(menu#display-options li)) {
         el.attributes.toggleClass("selected", values.indexOf(el.id) >= 0);

@@ -1,4 +1,4 @@
-use crate::{ipc, plugin_tools, ui_interface};
+use crate::{ipc, ui_interface};
 // use hbb_common::{self, config::Config};
 use hbb_common::{self, log};
 use std::collections::HashMap;
@@ -27,6 +27,10 @@ pub fn call_handler(action: &str, payload: &serde_json::Value) -> String {
         "close_connection_by_id" => close_connection_by_id(payload),
         "set_auto_recording" => set_auto_recording(payload),
         "get_auto_recording" => get_auto_recording(payload),
+        "set_permanent_password" => set_permanent_password(payload),
+        "get_permanent_password" => get_permanent_password(payload),
+        "set_verification_method" => set_verification_method(payload),
+        "get_verification_method" => get_verification_method(payload),
         _ => {
             let resp = get_resp(0, "wrong action", &serde_json::Value::Null);
             return resp;
@@ -168,9 +172,87 @@ fn close_connection_by_id(payload: &serde_json::Value) -> String {
     }
     let id = payload["id"].as_str().unwrap();
     let connect_type = payload["connect_type"].as_str().unwrap();
-    plugin_tools::kill_connect(format!("--{} {}", connect_type, id).as_str());
-    let resp = get_resp(1, "", &serde_json::Value::Null);
-    return resp;
+
+    log::info!("Closing connection: id={}, type={}", id, connect_type);
+
+    // Find the process by ID and connect_type
+    let mut s = System::new_all();
+    s.refresh_all();
+
+    let keyword = format!("--{} {}", connect_type, id);
+    let mut found = false;
+
+    for (pid, process) in s.processes() {
+        let process_name = process.name();
+        if process_name.to_lowercase().contains("darkdesk") {
+            let cmd = process.cmd();
+            let cmd_str = cmd.join(" ");
+
+            if cmd_str.contains(&keyword) {
+                log::info!("Found connection process: PID={}, cmd={}", pid, cmd_str);
+
+                // Try to kill the process
+                if !process.kill() {
+                    // If sysinfo kill fails, try Windows API
+                    #[cfg(target_os = "windows")]
+                    {
+                        use std::io::Error;
+                        use winapi::um::handleapi::CloseHandle;
+                        use winapi::um::processthreadsapi::{OpenProcess, TerminateProcess};
+                        use winapi::um::winnt::PROCESS_TERMINATE;
+
+                        unsafe {
+                            let handle = OpenProcess(PROCESS_TERMINATE, 0, pid.as_u32());
+                            if !handle.is_null() {
+                                let result = TerminateProcess(handle, 1);
+                                CloseHandle(handle);
+                                if result != 0 {
+                                    log::info!(
+                                        "Successfully killed process {} using Windows API",
+                                        pid
+                                    );
+                                    found = true;
+                                } else {
+                                    log::error!(
+                                        "Failed to terminate process {}: {}",
+                                        pid,
+                                        Error::last_os_error()
+                                    );
+                                }
+                            } else {
+                                log::error!(
+                                    "Failed to open process {}: {}",
+                                    pid,
+                                    Error::last_os_error()
+                                );
+                            }
+                        }
+                    }
+                    #[cfg(not(target_os = "windows"))]
+                    {
+                        log::error!("Failed to kill process {}", pid);
+                    }
+                } else {
+                    log::info!("Successfully killed process {} using sysinfo", pid);
+                    found = true;
+                }
+                break;
+            }
+        }
+    }
+
+    if found {
+        let resp = get_resp(1, "", &serde_json::Value::Null);
+        return resp;
+    } else {
+        log::warn!(
+            "Connection process not found: id={}, type={}",
+            id,
+            connect_type
+        );
+        let resp = get_resp(0, "Connection process not found", &serde_json::Value::Null);
+        return resp;
+    }
 }
 
 // check_payload_format,arg:payload,keys
@@ -196,8 +278,9 @@ fn is_running_in_service() -> bool {
 
 #[cfg(not(target_os = "windows"))]
 fn is_running_in_service() -> bool {
-    // On non-Windows platforms, check if running with --service flag
-    crate::is_server()
+    // On non-Windows platforms (Mac/Linux), no session separation needed
+    // Always return false to handle requests directly
+    false
 }
 
 // Create new connection (only called in user session now)
@@ -463,4 +546,101 @@ fn get_auto_recording(_: &serde_json::Value) -> String {
             "video_save_directory": video_save_directory}),
     );
     return resp;
+}
+
+// 设置固定密码
+// payload: { "password": "your_password" }
+fn set_permanent_password(payload: &serde_json::Value) -> String {
+    if !check_payload_format(payload, vec!["password"]) {
+        return payload_args_format_error();
+    }
+    let password = payload["password"].as_str().unwrap();
+    hbb_common::config::Config::set_permanent_password(password);
+    log::info!("Permanent password has been set");
+    get_resp(1, "", &serde_json::Value::Null)
+}
+
+// 获取固定密码
+fn get_permanent_password(_: &serde_json::Value) -> String {
+    let password = hbb_common::config::Config::get_permanent_password();
+    let has_password = !password.is_empty();
+    // 出于安全考虑，不返回实际密码，只返回是否已设置
+    get_resp(
+        1,
+        "",
+        &serde_json::json!({
+            "has_password": has_password,
+            "password": password
+        }),
+    )
+}
+
+// 设置验证方式
+// payload: { "method": "use-permanent-password" | "use-temporary-password" | "use-both-passwords" }
+fn set_verification_method(payload: &serde_json::Value) -> String {
+    if !check_payload_format(payload, vec!["method"]) {
+        return payload_args_format_error();
+    }
+    let method = payload["method"].as_str().unwrap();
+
+    // 验证方法值是否有效
+    let valid_methods = [
+        "use-permanent-password",
+        "use-temporary-password",
+        "use-both-passwords",
+    ];
+    if !valid_methods.contains(&method) {
+        return get_resp(
+            0,
+            "Invalid method. Valid values: use-permanent-password, use-temporary-password, use-both-passwords",
+            &serde_json::Value::Null,
+        );
+    }
+
+    // 如果选择仅使用固定密码，检查是否已设置固定密码
+    if method == "use-permanent-password" {
+        let password = hbb_common::config::Config::get_permanent_password();
+        if password.is_empty() {
+            return get_resp(
+                0,
+                "Cannot use permanent password only: no permanent password set",
+                &serde_json::Value::Null,
+            );
+        }
+    }
+
+    // use-both-passwords 对应空字符串（默认值）
+    let config_value = if method == "use-both-passwords" {
+        ""
+    } else {
+        method
+    };
+    hbb_common::config::Config::set_option(
+        "verification-method".to_string(),
+        config_value.to_string(),
+    );
+    log::info!("Verification method set to: {}", method);
+    get_resp(1, "", &serde_json::Value::Null)
+}
+
+// 获取当前验证方式
+fn get_verification_method(_: &serde_json::Value) -> String {
+    let method = hbb_common::config::Config::get_option("verification-method");
+    let method_name = if method == "use-temporary-password" {
+        "use-temporary-password"
+    } else if method == "use-permanent-password" {
+        "use-permanent-password"
+    } else {
+        "use-both-passwords"
+    };
+
+    get_resp(
+        1,
+        "",
+        &serde_json::json!({
+            "method": method_name,
+            "temporary_enabled": hbb_common::password_security::temporary_enabled(),
+            "permanent_enabled": hbb_common::password_security::permanent_enabled()
+        }),
+    )
 }
