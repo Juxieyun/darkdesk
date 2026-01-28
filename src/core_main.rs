@@ -595,6 +595,13 @@ fn core_main_invoke_new_connection(mut args: std::env::Args) -> Option<Vec<Strin
             "--relay" => {
                 param_array.push(format!("relay=true"));
             }
+            "--hide-tray" => {
+                // Set hide-tray option in BUILTIN_SETTINGS
+                hbb_common::config::BUILTIN_SETTINGS
+                    .write()
+                    .unwrap()
+                    .insert("hide-tray".to_string(), "Y".to_string());
+            }
             // inner
             "--switch_uuid" => {
                 if let Some(switch_uuid) = args.next() {

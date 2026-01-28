@@ -1,22 +1,42 @@
 use crate::{ipc, ui_interface};
-// use hbb_common::{self, config::Config};
-use hbb_common::{self, log};
-use std::collections::HashMap;
-//use sysinfo::{ProcessExt, System, SystemExt};
 use hbb_common::sysinfo::System;
+use hbb_common::{self, log};
 
 pub fn call_handler(action: &str, payload: &serde_json::Value) -> String {
-    // If running in Service mode, forward all API calls to GUI/Tray via IPC
+    // Some actions can be handled directly by Service without GUI/Tray
+    // These are read-only config operations or operations that don't affect running processes
+    let direct_service_actions = [
+        "set_custom_server",       // Server config - needs restart anyway
+        "get_server_status",       // Read-only
+        "set_auto_recording",      // Recording config - doesn't affect auth
+        "get_auto_recording",      // Read-only
+        "get_permanent_password",  // Read-only
+        "get_verification_method", // Read-only
+    ];
+
+    // These actions MUST be forwarded to GUI/Tray because they affect
+    // the running process's in-memory state (e.g., password verification)
+    // - set_permanent_password: Password is cached in memory, GUI/Tray needs to update its cache
+    // - set_verification_method: Verification method is cached in memory
+
+    // If running in Service mode, check if action can be handled directly
     if is_running_in_service() {
-        log::info!(
-            "Service mode (Session 0): Forwarding API call '{}' to GUI/Tray via IPC",
-            action
-        );
-        return forward_to_user_session(action, payload);
+        if direct_service_actions.contains(&action) {
+            log::info!(
+                "Service mode: Handling config action '{}' directly (no IPC needed)",
+                action
+            );
+        } else {
+            log::info!(
+                "Service mode (Session 0): Forwarding API call '{}' to GUI/Tray via IPC",
+                action
+            );
+            return forward_to_user_session(action, payload);
+        }
+    } else {
+        log::info!("User session: Handling API call '{}' directly", action);
     }
 
-    // Running in user session, handle directly
-    log::info!("User session: Handling API call '{}' directly", action);
     match action {
         "get_temporary_password" => get_temporary_password(payload),
         "update_temporary_password" => update_temporary_password(payload),
@@ -32,7 +52,11 @@ pub fn call_handler(action: &str, payload: &serde_json::Value) -> String {
         "set_verification_method" => set_verification_method(payload),
         "get_verification_method" => get_verification_method(payload),
         _ => {
-            let resp = get_resp(0, "wrong action", &serde_json::Value::Null);
+            let resp = get_resp(
+                0,
+                format!("wrong action: {action}").as_str(),
+                &serde_json::Value::Null,
+            );
             return resp;
         }
     }
@@ -128,6 +152,31 @@ fn get_resp(code: i32, msg: &str, data: &serde_json::Value) -> String {
 }}"#
     );
     return json_str;
+}
+
+// Get peer_id from CM (Connection Manager) clients state
+fn get_cm_peer_id() -> String {
+    // In Flutter mode, the Tray/GUI process shares the same CLIENTS state with CM
+    // So we can directly call get_clients_state()
+    #[cfg(feature = "flutter")]
+    {
+        let state = crate::ui_cm_interface::get_clients_state();
+        log::debug!("CM clients state: {}", state);
+        if let Ok(clients) = serde_json::from_str::<Vec<serde_json::Value>>(&state) {
+            // Return the first connected client's peer_id
+            for client in clients {
+                if let Some(peer_id) = client.get("peer_id").and_then(|v| v.as_str()) {
+                    if !peer_id.is_empty() {
+                        log::info!("Got peer_id from CM: {}", peer_id);
+                        return peer_id.to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    // If not in flutter mode or no clients found, return empty
+    String::new()
 }
 
 // 返回参数格式错误resp
@@ -410,10 +459,13 @@ fn get_connection_status(_: &serde_json::Value) -> String {
                 total_count += 1;
             } else if cmd.contains(&"--cm".to_owned()) {
                 log::info!("→ Controlled process (CM)");
+                // Try to get peer_id from CM clients state via IPC
+                let peer_id = get_cm_peer_id();
                 processes.push(serde_json::json!({
                     "pid": pid.to_string(),
                     "name": process_name,
-                    "type": "controlled"
+                    "type": "controlled",
+                    "peer_id": peer_id
                 }));
                 total_count += 1;
             } else {
@@ -446,20 +498,45 @@ fn get_server_status(_: &serde_json::Value) -> String {
 }
 
 fn set_custom_server(payload: &serde_json::Value) -> String {
-    if !check_payload_format(payload, vec!["id-server", "relay-server", "server-key"]) {
+    // Support both underscore and hyphen field names for compatibility
+    let id_server = payload["id-server"]
+        .as_str()
+        .or_else(|| payload["id_server"].as_str());
+    let relay_server = payload["relay-server"]
+        .as_str()
+        .or_else(|| payload["relay_server"].as_str());
+    let server_key = payload["server-key"]
+        .as_str()
+        .or_else(|| payload["server_key"].as_str());
+
+    if id_server.is_none() || relay_server.is_none() || server_key.is_none() {
         return payload_args_format_error();
     }
-    let rendezvous_server = payload["id-server"].as_str().unwrap();
-    let relay_server = payload["relay-server"].as_str().unwrap();
-    let server_key = payload["server-key"].as_str().unwrap();
-    let mut config_options = HashMap::<String, String>::new();
-    config_options.insert(String::from("relay-server"), relay_server.to_string());
-    config_options.insert(
-        String::from("custom-rendezvous-server"),
+
+    let rendezvous_server = id_server.unwrap();
+    let relay_server = relay_server.unwrap();
+    let server_key = server_key.unwrap();
+
+    // Use direct Config::set_option() calls instead of ui_interface::set_options()
+    // This avoids IPC dependency and works even when GUI/Tray is not running
+    hbb_common::config::Config::set_option("relay-server".to_string(), relay_server.to_string());
+    hbb_common::config::Config::set_option(
+        "custom-rendezvous-server".to_string(),
         rendezvous_server.to_string(),
     );
-    config_options.insert(String::from("key"), server_key.to_string());
-    ui_interface::set_options(config_options);
+    hbb_common::config::Config::set_option("key".to_string(), server_key.to_string());
+
+    log::info!(
+        "Custom server configured: rendezvous={}, relay={}, key={}",
+        rendezvous_server,
+        relay_server,
+        if server_key.is_empty() {
+            "(empty)"
+        } else {
+            "(set)"
+        }
+    );
+
     let resp = get_resp(1, "", &serde_json::Value::Null);
     return resp;
 }

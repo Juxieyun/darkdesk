@@ -1058,6 +1058,7 @@ pub fn new_remote_with_passwd(id: String, remote_type: String, force_relay: bool
         id.clone(),
         format!("--password"),
         passwd.clone(),
+        format!("--hide-tray"), // Hide tray icon for API-initiated connections
     ];
     if force_relay {
         args.push("--relay".to_string());
