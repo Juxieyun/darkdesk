@@ -13,13 +13,13 @@
 cd flutter
 flutter clean
 flutter pub get
-dart pub get
-dart pub upgrade
+dart pub get 
+dart pub upgrade 
 flutter_rust_bridge_codegen --rust-input ../src/flutter_ffi.rs --dart-output ./lib/generated_bridge.dart --c-output ./macos/Runner/bridge_generated.h
 # 此处撤销pubspec.lock文件变动
 dart pub get
 cd ..
-python3 build.py --flutter
+python.exe build.py --flutter
 ```
 
 为了实现可以编译完整版和精简版等多种形式的客户端，在[config.rs](./libs/hbb_common/src/config.rs#L81)中添加不同的编译配置。同时在[Cargo.toml](./Cargo.toml#L46)中添加不同的feature,如果时完整版直接去掉feature即可。
