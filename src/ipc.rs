@@ -270,23 +270,6 @@ pub enum Data {
     HwCodecConfig(Option<String>),
     RemoveTrustedDevices(Vec<Bytes>),
     ClearTrustedDevices,
-    // Custom: Request to create a new remote connection
-    CreateRemoteConnection {
-        id: String,
-        remote_type: String,
-        force_relay: bool,
-        password: String,
-        alias: String,
-    },
-    // Custom: Generic API call forwarding from Service to GUI/Tray
-    ApiCall {
-        action: String,
-        payload: String, // JSON string
-    },
-    // Custom: API call response from GUI/Tray to Service
-    ApiResponse {
-        response: String, // JSON string
-    },
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -673,47 +656,6 @@ async fn handle(data: Data, stream: &mut Connection) {
         }
         Data::ClearTrustedDevices => {
             Config::clear_trusted_devices();
-        }
-        Data::CreateRemoteConnection {
-            id,
-            remote_type,
-            force_relay,
-            password,
-            alias,
-        } => {
-            log::info!("Received IPC request to create connection: id={}, type={}", id, remote_type);
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            {
-                // Set alias before creating connection
-                if !alias.is_empty() {
-                    crate::ui_interface::set_peer_option(id.clone(), "alias".into(), alias);
-                }
-                // Create the connection with password
-                crate::ui_interface::new_remote_with_passwd(id, remote_type, force_relay, password);
-            }
-        }
-        Data::ApiCall { action, payload } => {
-            log::info!("Received IPC API call: action={}", action);
-            // Forward to API handler in user session
-            let payload_value: serde_json::Value = match serde_json::from_str(&payload) {
-                Ok(v) => v,
-                Err(e) => {
-                    log::error!("Failed to parse API payload: {}", e);
-                    let _ = stream.send(&Data::ApiResponse {
-                        response: format!(r#"{{"code": -1, "msg": "Invalid payload: {}", "data": null}}"#, e)
-                    }).await;
-                    return;
-                }
-            };
-            
-            log::info!("Calling API handler in user session...");
-            let response = crate::api::call_handler(&action, &payload_value);
-            log::info!("API handler returned, sending response: {}", &response[..response.len().min(100)]);
-            
-            match stream.send(&Data::ApiResponse { response: response.clone() }).await {
-                Ok(_) => log::info!("Successfully sent API response via IPC"),
-                Err(e) => log::error!("Failed to send API response: {}", e),
-            }
         }
         _ => {}
     }
