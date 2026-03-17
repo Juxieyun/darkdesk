@@ -1087,6 +1087,52 @@ pub fn new_remote_with_passwd(id: String, remote_type: String, force_relay: bool
     }
 }
 
+/// Kill all tracked child processes (--connect, --cm, etc.)
+/// Called during shutdown to prevent orphaned user-session processes.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub fn kill_all_children() {
+    // First, kill tracked children in CHILDREN map
+    let mut lock = CHILDREN.lock().unwrap();
+    for ((id, remote_type), child) in lock.1.iter_mut() {
+        log::info!(
+            "Killing tracked child process: id={}, type={}",
+            id,
+            remote_type
+        );
+        if let Err(e) = child.kill() {
+            log::error!("Failed to kill child process {}/{}: {}", id, remote_type, e);
+        } else {
+            child.try_wait().ok();
+        }
+    }
+    lock.1.clear();
+    drop(lock);
+
+    // Then, scan for any remaining DarkDesk --connect / --cm processes
+    // These may have been spawned via run_as_user (e.g. --cm) and are not tracked in CHILDREN
+    use hbb_common::sysinfo::System;
+    let my_pid = std::process::id();
+    let mut s = System::new_all();
+    s.refresh_all();
+    for (pid, process) in s.processes() {
+        if pid.as_u32() == my_pid {
+            continue;
+        }
+        let name = process.name().to_lowercase();
+        if !name.contains("darkdesk") {
+            continue;
+        }
+        let cmd = process.cmd();
+        let is_child = cmd
+            .iter()
+            .any(|a| a == "--connect" || a == "--cm" || a == "--cm-no-ui" || a == "--tray");
+        if is_child {
+            log::info!("Killing orphaned process: PID={}, cmd={:?}", pid, cmd);
+            process.kill();
+        }
+    }
+}
+
 // Make sure `SENDER` is inited here.
 #[inline]
 #[cfg(not(any(target_os = "android", target_os = "ios")))]

@@ -403,6 +403,10 @@ async fn handle(data: Data, stream: &mut Connection) {
                 if is_server() {
                     let _ = privacy_mode::turn_off_privacy(0, Some(PrivacyModeState::OffByPeer));
                 }
+                // Kill all tracked child processes (--connect, --cm, etc.)
+                // to prevent orphaned user-session processes after service stop
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                crate::ui_interface::kill_all_children();
                 #[cfg(any(target_os = "macos", target_os = "linux"))]
                 if crate::is_main() {
                     // below part is for main windows can be reopen during rustdesk installation and installing service from UI
