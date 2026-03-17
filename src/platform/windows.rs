@@ -676,8 +676,22 @@ pub fn run_as_user(arg: Vec<&str>) -> ResultType<Option<std::process::Child>> {
         std::env::current_exe()?.to_str().unwrap_or(""),
         arg.join(" "),
     );
-    let Some(session_id) = get_current_process_session_id() else {
-        bail!("Failed to get current process session id");
+    // If current process is in Session 0 (Service), we need to launch in the
+    // active user session, not Session 0. Use get_current_session to find it.
+    let session_id = match get_current_process_session_id() {
+        Some(0) => {
+            let user_session = unsafe { get_current_session(share_rdp()) };
+            if user_session == 0xFFFFFFFF {
+                bail!("No active user session found");
+            }
+            log::info!(
+                "run_as_user: Current process in Session 0, launching in user session {}",
+                user_session
+            );
+            user_session
+        }
+        Some(sid) => sid,
+        None => bail!("Failed to get current process session id"),
     };
     use std::os::windows::ffi::OsStrExt;
     let wstr: Vec<u16> = std::ffi::OsStr::new(&cmd)

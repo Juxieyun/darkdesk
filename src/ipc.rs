@@ -270,6 +270,14 @@ pub enum Data {
     HwCodecConfig(Option<String>),
     RemoveTrustedDevices(Vec<Bytes>),
     ClearTrustedDevices,
+    // Forward API call from Service (Session 0) to Server process (user session)
+    ApiCall {
+        action: String,
+        payload: String,
+    },
+    ApiResponse {
+        response: String,
+    },
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -656,6 +664,13 @@ async fn handle(data: Data, stream: &mut Connection) {
         }
         Data::ClearTrustedDevices => {
             Config::clear_trusted_devices();
+        }
+        Data::ApiCall { action, payload } => {
+            log::info!("IPC: Received API call '{}' from Service", action);
+            let payload_value: serde_json::Value =
+                serde_json::from_str(&payload).unwrap_or(serde_json::Value::Null);
+            let response = crate::api::call_handler(&action, &payload_value);
+            allow_err!(stream.send(&Data::ApiResponse { response }).await);
         }
         _ => {}
     }
@@ -1164,6 +1179,26 @@ pub async fn connect_to_user_session(usid: Option<u32>) -> ResultType<()> {
 pub async fn notify_server_to_check_hwcodec() -> ResultType<()> {
     connect(1_000, "").await?.send(&&Data::CheckHwcodec).await?;
     Ok(())
+}
+
+/// Forward an API action to the --server process via IPC.
+/// Used by --service (Session 0) to delegate actions that need user session.
+#[cfg(windows)]
+#[tokio::main(flavor = "current_thread")]
+pub async fn forward_api_to_server(
+    action: &str,
+    payload: &serde_json::Value,
+) -> ResultType<String> {
+    let mut c = connect(3000, "").await?;
+    c.send(&Data::ApiCall {
+        action: action.to_owned(),
+        payload: serde_json::to_string(payload)?,
+    })
+    .await?;
+    if let Some(Data::ApiResponse { response }) = c.next_timeout(5000).await? {
+        return Ok(response);
+    }
+    bail!("No response from server process");
 }
 
 #[cfg(feature = "hwcodec")]
