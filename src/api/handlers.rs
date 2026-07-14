@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{ipc, ui_interface};
 use hbb_common::sysinfo::System;
 use hbb_common::{self, log};
