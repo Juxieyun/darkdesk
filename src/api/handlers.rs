@@ -316,6 +316,16 @@ fn check_key_exists(payload: &serde_json::Value, key: Vec<&str>) -> bool {
     return true;
 }
 
+// 解析布尔值或 "Y"/"N" 字符串，兼容两种格式
+fn parse_bool_or_yn(value: &serde_json::Value) -> bool {
+    value.as_bool().unwrap_or_else(|| {
+        value
+            .as_str()
+            .map(crate::common::is_truthy_flag)
+            .unwrap_or(false)
+    })
+}
+
 // Helper function to check if running in Service (Session 0)
 #[cfg(target_os = "windows")]
 fn is_running_in_service() -> bool {
@@ -409,9 +419,17 @@ response:
 */
 fn get_connection_status(_: &serde_json::Value) -> String {
     // Use System::new_all() to ensure we get all processes
-    let mut s = System::new_all();
-    s.refresh_all(); // Refresh to get latest process info
-    let target_process_name = "DarkDesk";
+    let s = System::new_all();
+    // windows 下是 darkdesk
+    // mac 下是 DarkDesk
+    // linux 下是 darkdesk
+    let target_process_name = if cfg!(target_os = "windows") {
+        "darkdesk"
+    } else if cfg!(target_os = "macos") {
+        "DarkDesk"
+    } else {
+        "darkdesk"
+    };
     let mut processes = Vec::<serde_json::Value>::new();
     let mut total_count = 0;
     let mut all_darkdesk_count = 0;
@@ -590,14 +608,10 @@ fn set_auto_recording(payload: &serde_json::Value) -> String {
         return payload_args_format_error();
     }
     let video_save_directory = payload["video_save_directory"].as_str().unwrap();
-    // allow-auto-record-incoming
-    let allow_auto_record_incoming = payload["allow_auto_record_incoming"]
-        .as_bool()
-        .unwrap_or(false);
-    // allow-auto-record-outgoing
-    let allow_auto_record_outgoing = payload["allow_auto_record_outgoing"]
-        .as_bool()
-        .unwrap_or(false);
+    // allow-auto-record-incoming - 兼容布尔值和字符串 "Y"/"N"
+    let allow_auto_record_incoming = parse_bool_or_yn(&payload["allow_auto_record_incoming"]);
+    // allow-auto-record-outgoing - 兼容布尔值和字符串 "Y"/"N"
+    let allow_auto_record_outgoing = parse_bool_or_yn(&payload["allow_auto_record_outgoing"]);
 
     if video_save_directory.len() != 0 {
         hbb_common::config::LocalConfig::set_option(
@@ -620,14 +634,18 @@ fn set_auto_recording(payload: &serde_json::Value) -> String {
 }
 
 fn get_auto_recording(_: &serde_json::Value) -> String {
-    let allow_auto_record_incoming = hbb_common::config::option2bool(
+    let auto_recording_in = hbb_common::config::option2bool(
         "allow-auto-record-incoming",
-        &hbb_common::config::LocalConfig::get_option("allow-auto-record-incoming"),
-    );
-    let allow_auto_record_outgoing = hbb_common::config::option2bool(
+        &hbb_common::config::Config::get_option("allow-auto-record-incoming"),
+    )
+    .then_some("Y")
+    .unwrap_or("N");
+    let auto_recording_out = hbb_common::config::option2bool(
         "allow-auto-record-outgoing",
         &hbb_common::config::LocalConfig::get_option("allow-auto-record-outgoing"),
-    );
+    )
+    .then_some("Y")
+    .unwrap_or("N");
     let video_save_directory: String =
         hbb_common::config::LocalConfig::get_option("video-save-directory");
     // 读取video-save-directory
@@ -789,5 +807,26 @@ mod tests {
             "jxyr.juxieyun.com:21147",
             "public-key"
         ));
+    }
+
+    #[test]
+    fn recording_flags_accept_boolean_and_string_values() {
+        for value in [
+            serde_json::json!(true),
+            serde_json::json!("Y"),
+            serde_json::json!("TRUE"),
+            serde_json::json!("yes"),
+            serde_json::json!("1"),
+        ] {
+            assert!(parse_bool_or_yn(&value));
+        }
+        for value in [
+            serde_json::json!(false),
+            serde_json::json!("N"),
+            serde_json::json!("false"),
+            serde_json::json!("0"),
+        ] {
+            assert!(!parse_bool_or_yn(&value));
+        }
     }
 }

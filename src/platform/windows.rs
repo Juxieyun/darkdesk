@@ -649,9 +649,15 @@ async fn launch_server(session_id: DWORD, close_first: bool) -> ResultType<HANDL
         // in case started some elsewhere
         send_close_async("").await.ok();
     }
+    let hide_tray_arg = if crate::common::hide_tray_by_launch_context() {
+        " --hide-tray"
+    } else {
+        ""
+    };
     let cmd = format!(
-        "\"{}\" --server",
-        std::env::current_exe()?.to_str().unwrap_or("")
+        "\"{}\" --server{}",
+        std::env::current_exe()?.to_str().unwrap_or(""),
+        hide_tray_arg
     );
     use std::os::windows::ffi::OsStrExt;
     let wstr: Vec<u16> = std::ffi::OsStr::new(&cmd)
@@ -2207,7 +2213,31 @@ pub fn install_service() -> bool {
     let _installing = crate::platform::InstallingService::new();
     let (_, _, _, exe) = get_install_info();
     let tmp_path = std::env::temp_dir().to_string_lossy().to_string();
-    let tray_shortcut = get_tray_shortcut(&exe, &tmp_path).unwrap_or_default();
+    let hide_tray = crate::common::hide_tray_by_launch_context();
+    let tray_shortcut = if hide_tray {
+        String::new()
+    } else {
+        get_tray_shortcut(&exe, &tmp_path).unwrap_or_default()
+    };
+    let create_tray_shortcut = if hide_tray {
+        format!(
+            "if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"",
+            app_name = crate::get_app_name()
+        )
+    } else {
+        format!(
+            "
+cscript \"{tray_shortcut}\"
+copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
+",
+            app_name = crate::get_app_name()
+        )
+    };
+    let delete_tray_shortcut = if tray_shortcut.is_empty() {
+        String::new()
+    } else {
+        format!("if exist \"{tray_shortcut}\" del /f /q \"{tray_shortcut}\"")
+    };
     let filter = format!(" /FI \"PID ne {}\"", get_current_pid());
     Config::set_option("stop-service".into(), "".into());
     crate::ipc::EXIT_RECV_CLOSE.store(false, Ordering::Relaxed);
@@ -2215,11 +2245,10 @@ pub fn install_service() -> bool {
         "
 chcp 65001
 taskkill /F /IM {app_name}.exe{filter}
-cscript \"{tray_shortcut}\"
-copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
+{create_tray_shortcut}
 {import_config}
 {create_service}
-if exist \"{tray_shortcut}\" del /f /q \"{tray_shortcut}\"
+{delete_tray_shortcut}
     ",
         app_name = crate::get_app_name(),
         import_config = get_import_config(&exe),
@@ -2284,8 +2313,13 @@ fn get_create_service(exe: &str) -> String {
 if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
 ", app_name = crate::get_app_name())
     } else {
+        let hide_tray_arg = if crate::common::hide_tray_by_launch_context() {
+            " --hide-tray"
+        } else {
+            ""
+        };
         format!("
-sc create {app_name} binpath= \"\\\"{exe}\\\" --service\" start= demand DisplayName= \"{app_name} Service\"
+sc create {app_name} binpath= \"\\\"{exe}\\\" --service{hide_tray_arg}\" start= demand DisplayName= \"{app_name} Service\"
 sc start {app_name}
 ",
     app_name = crate::get_app_name())
@@ -2301,7 +2335,7 @@ fn run_after_run_cmds(silent: bool) {
             .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
             .spawn());
     }
-    if Config::get_option("stop-service") != "Y" {
+    if Config::get_option("stop-service") != "Y" && !crate::common::hide_tray_by_launch_context() {
         allow_err!(std::process::Command::new(&exe).arg("--tray").spawn());
     }
     std::thread::sleep(std::time::Duration::from_millis(300));

@@ -52,19 +52,19 @@ fn handle_connection(mut stream: TcpStream) {
         // Read incoming data from the client
         let mut buffer = [0; 1024];
         let read_result = stream.read(&mut buffer);
-        
+
         if let Err(e) = read_result {
             log::error!("Failed to read from stream: {}", e);
             break; // 读取错误，结束连接
         }
-        
+
         let bytes_read = read_result.unwrap();
         if bytes_read == 0 {
             // 客户端关闭连接
             log::debug!("Client closed the connection");
             break;
         }
-        
+
         let received_data = String::from_utf8_lossy(&buffer[..bytes_read]);
         let trimmed_data = received_data.trim_end_matches(char::from(0));
         log::debug!("Received data: {}", trimmed_data);
@@ -83,7 +83,7 @@ fn handle_connection(mut stream: TcpStream) {
             }
             continue; // 继续等待下一个请求
         }
-        
+
         // 如果数据非常短且不是JSON格式，也可能是心跳请求
         if clean_data.len() < 10 && !clean_data.starts_with('{') && !clean_data.starts_with('[') {
             log::info!("Received potential heartbeat: '{}'", clean_data);
@@ -115,11 +115,11 @@ fn handle_connection(mut stream: TcpStream) {
                 continue; // 继续等待下一个请求
             }
         };
-        
+
         // 安全地访问 action 和 payload 字段
         let action = parsed_result.get("action").and_then(|v| v.as_str());
         let payload = parsed_result.get("payload");
-        
+
         if let Some(action_str) = action {
             log::debug!("parsed_data['action']: {}", action_str);
             if let Some(payload_val) = payload {
@@ -127,7 +127,7 @@ fn handle_connection(mut stream: TcpStream) {
             } else {
                 log::warn!("No payload field found in request");
             }
-            
+
             let payload_val = payload.unwrap_or(&serde_json::Value::Null);
             let response = format!("{}\n", handlers::call_handler(action_str, payload_val));
             if let Err(e) = stream.write(response.as_bytes()) {
@@ -151,6 +151,6 @@ fn handle_connection(mut stream: TcpStream) {
             }
         }
     }
-    
+
     log::debug!("Connection closed");
 }

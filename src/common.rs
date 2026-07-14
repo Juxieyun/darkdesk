@@ -52,6 +52,8 @@ pub const PLATFORM_WINDOWS: &str = "Windows";
 pub const PLATFORM_LINUX: &str = "Linux";
 pub const PLATFORM_MACOS: &str = "Mac OS";
 pub const PLATFORM_ANDROID: &str = "Android";
+pub const HIDE_TRAY_ARG: &str = "--hide-tray";
+pub const HIDE_TRAY_ENV: &str = "DARKDESK_HIDE_TRAY";
 
 pub const TIMER_OUT: Duration = Duration::from_secs(1);
 pub const DEFAULT_KEEP_ALIVE: i32 = 60_000;
@@ -111,6 +113,22 @@ pub fn global_init() -> bool {
 }
 
 pub fn global_clean() {}
+
+#[inline]
+pub fn hide_tray_by_launch_context() -> bool {
+    std::env::args().any(|arg| arg == HIDE_TRAY_ARG)
+        || std::env::var(HIDE_TRAY_ENV)
+            .map(|value| is_truthy_flag(&value))
+            .unwrap_or(false)
+}
+
+#[inline]
+pub fn is_truthy_flag(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "y" | "on"
+    )
+}
 
 #[inline]
 pub fn set_server_running(b: bool) {
@@ -837,7 +855,7 @@ async fn check_software_update_() -> hbb_common::ResultType<()> {
                 let _ = crate::flutter::push_global_event(crate::flutter::APP_TYPE_MAIN, data);
             }
         }
-        *SOFTWARE_UPDATE_URL.lock().unwrap() = response_url; 
+        *SOFTWARE_UPDATE_URL.lock().unwrap() = response_url;
     }
     Ok(())
 }
@@ -1546,6 +1564,16 @@ mod tests {
             Instant::now() + Duration::from_secs(1),
             Duration::from_secs(1),
         )
+    }
+
+    #[test]
+    fn hide_tray_truthy_values_are_accepted() {
+        for value in ["1", "true", "TRUE", "yes", "Y", "on"] {
+            assert!(is_truthy_flag(value));
+        }
+        for value in ["", "0", "false", "no", "off"] {
+            assert!(!is_truthy_flag(value));
+        }
     }
 
     // ThrottledInterval tick at the same time as tokio interval, if no sleeps

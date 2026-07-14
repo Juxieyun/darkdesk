@@ -69,15 +69,21 @@ pub fn core_main() -> Option<Vec<String>> {
                 _is_quick_support = true;
             } else if arg == "--no-server" {
                 no_server = true;
+            } else if arg == crate::common::HIDE_TRAY_ARG {
+                // jstdaemon launches DarkDesk headlessly and must not create a tray icon.
             } else {
                 args.push(arg);
             }
         }
         i += 1;
     }
+    let hide_tray = crate::common::hide_tray_by_launch_context();
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     if args.is_empty() {
-        if crate::check_process("--server", false) && !crate::check_process("--tray", true) {
+        if !hide_tray
+            && crate::check_process("--server", false)
+            && !crate::check_process("--tray", true)
+        {
             #[cfg(target_os = "linux")]
             hbb_common::allow_err!(crate::platform::check_autostart_config());
             hbb_common::allow_err!(crate::run_me(vec!["--tray"]));
@@ -250,7 +256,7 @@ pub fn core_main() -> Option<Vec<String>> {
                 return None;
             }
         } else if args[0] == "--tray" {
-            if !crate::check_process("--tray", true) {
+            if !hide_tray && !crate::check_process("--tray", true) {
                 crate::tray::start_tray();
             }
             return None;
@@ -280,16 +286,18 @@ pub fn core_main() -> Option<Vec<String>> {
             #[cfg(target_os = "linux")]
             {
                 hbb_common::allow_err!(crate::platform::check_autostart_config());
-                std::process::Command::new("pkill")
-                    .arg("-f")
-                    .arg(&format!("{} --tray", crate::get_app_name().to_lowercase()))
-                    .status()
-                    .ok();
-                hbb_common::allow_err!(crate::platform::run_as_user(
-                    vec!["--tray"],
-                    None,
-                    None::<(&str, &str)>,
-                ));
+                if !hide_tray {
+                    std::process::Command::new("pkill")
+                        .arg("-f")
+                        .arg(&format!("{} --tray", crate::get_app_name().to_lowercase()))
+                        .status()
+                        .ok();
+                    hbb_common::allow_err!(crate::platform::run_as_user(
+                        vec!["--tray"],
+                        None,
+                        None::<(&str, &str)>,
+                    ));
+                }
             }
             #[cfg(windows)]
             crate::privacy_mode::restore_reg_connectivity(true);
@@ -299,10 +307,14 @@ pub fn core_main() -> Option<Vec<String>> {
             }
             #[cfg(target_os = "macos")]
             {
-                let handler = std::thread::spawn(move || crate::start_server(true, false));
-                crate::tray::start_tray();
-                // prevent server exit when encountering errors from tray
-                hbb_common::allow_err!(handler.join());
+                if hide_tray {
+                    crate::start_server(true, false);
+                } else {
+                    let handler = std::thread::spawn(move || crate::start_server(true, false));
+                    crate::tray::start_tray();
+                    // prevent server exit when encountering errors from tray
+                    hbb_common::allow_err!(handler.join());
+                }
             }
             return None;
         } else if args[0] == "--import-config" {
