@@ -490,6 +490,32 @@ fn get_server_status(_: &serde_json::Value) -> String {
     return resp;
 }
 
+fn merge_custom_server_options(
+    mut options: HashMap<String, String>,
+    rendezvous_server: &str,
+    relay_server: &str,
+    server_key: &str,
+) -> HashMap<String, String> {
+    options.insert(
+        "custom-rendezvous-server".to_string(),
+        rendezvous_server.to_string(),
+    );
+    options.insert("relay-server".to_string(), relay_server.to_string());
+    options.insert("key".to_string(), server_key.to_string());
+    options
+}
+
+fn custom_server_options_match(
+    options: &HashMap<String, String>,
+    rendezvous_server: &str,
+    relay_server: &str,
+    server_key: &str,
+) -> bool {
+    options.get("custom-rendezvous-server").map(String::as_str) == Some(rendezvous_server)
+        && options.get("relay-server").map(String::as_str) == Some(relay_server)
+        && options.get("key").map(String::as_str) == Some(server_key)
+}
+
 fn set_custom_server(payload: &serde_json::Value) -> String {
     // Support both underscore and hyphen field names for compatibility
     let id_server = payload["id-server"]
@@ -505,33 +531,48 @@ fn set_custom_server(payload: &serde_json::Value) -> String {
     if id_server.is_none() || relay_server.is_none() || server_key.is_none() {
         return payload_args_format_error();
     }
-
     let rendezvous_server = id_server.unwrap();
     let relay_server = relay_server.unwrap();
     let server_key = server_key.unwrap();
-
-    // Use direct Config::set_option() calls instead of ui_interface::set_options()
-    // This avoids IPC dependency and works even when GUI/Tray is not running
-    hbb_common::config::Config::set_option("relay-server".to_string(), relay_server.to_string());
-    hbb_common::config::Config::set_option(
-        "custom-rendezvous-server".to_string(),
-        rendezvous_server.to_string(),
-    );
-    hbb_common::config::Config::set_option("key".to_string(), server_key.to_string());
-
-    log::info!(
-        "Custom server configured: rendezvous={}, relay={}, key={}",
+    let config_path = hbb_common::config::Config2::file();
+    let config_options = merge_custom_server_options(
+        hbb_common::config::Config2::get().options,
         rendezvous_server,
         relay_server,
-        if server_key.is_empty() {
-            "(empty)"
-        } else {
-            "(set)"
-        }
+        server_key,
     );
+    let _restart = ipc::CheckIfRestart::new();
+    hbb_common::config::Config::set_options(config_options);
 
-    let resp = get_resp(1, "", &serde_json::Value::Null);
-    return resp;
+    let persisted: hbb_common::config::Config2 = hbb_common::config::load_path(config_path.clone());
+    if !custom_server_options_match(
+        &persisted.options,
+        rendezvous_server,
+        relay_server,
+        server_key,
+    ) {
+        log::error!(
+            "Failed to persist custom server config: path={}, rendezvous={}, relay={}, key_set={}",
+            config_path.display(),
+            rendezvous_server,
+            relay_server,
+            !server_key.is_empty()
+        );
+        return get_resp(
+            -1,
+            "Failed to persist custom server config",
+            &serde_json::Value::Null,
+        );
+    }
+
+    log::info!(
+        "Custom server persisted: path={}, rendezvous={}, relay={}, key_set={}",
+        config_path.display(),
+        rendezvous_server,
+        relay_server,
+        !server_key.is_empty()
+    );
+    get_resp(1, "", &serde_json::Value::Null)
 }
 
 // video_save_directory: "/path/to/save"
@@ -699,4 +740,54 @@ fn get_verification_method(_: &serde_json::Value) -> String {
             "permanent_enabled": hbb_common::password_security::permanent_enabled()
         }),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn custom_server_options_preserve_existing_values() {
+        let mut existing = HashMap::new();
+        existing.insert("av1-test".to_string(), "Y".to_string());
+        existing.insert("local-ip-addr".to_string(), "192.168.1.2".to_string());
+
+        let options = merge_custom_server_options(
+            existing,
+            "jxyr.juxieyun.com:21126",
+            "jxyr.juxieyun.com:21147",
+            "public-key",
+        );
+
+        assert_eq!(options.get("av1-test").map(String::as_str), Some("Y"));
+        assert_eq!(
+            options.get("local-ip-addr").map(String::as_str),
+            Some("192.168.1.2")
+        );
+        assert!(custom_server_options_match(
+            &options,
+            "jxyr.juxieyun.com:21126",
+            "jxyr.juxieyun.com:21147",
+            "public-key"
+        ));
+    }
+
+    #[test]
+    fn custom_server_validation_rejects_missing_key() {
+        let options = merge_custom_server_options(
+            HashMap::new(),
+            "jxyr.juxieyun.com:21126",
+            "jxyr.juxieyun.com:21147",
+            "public-key",
+        );
+        let mut incomplete = options;
+        incomplete.remove("key");
+
+        assert!(!custom_server_options_match(
+            &incomplete,
+            "jxyr.juxieyun.com:21126",
+            "jxyr.juxieyun.com:21147",
+            "public-key"
+        ));
+    }
 }
