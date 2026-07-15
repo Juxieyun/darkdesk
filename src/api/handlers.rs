@@ -4,18 +4,15 @@ use crate::{ipc, ui_interface};
 use hbb_common::sysinfo::System;
 use hbb_common::{self, log};
 
-pub fn call_handler(action: &str, payload: &serde_json::Value) -> String {
-    // Some actions can be handled directly by Service without GUI/Tray
-    // These are read-only config operations or operations that don't affect running processes
-    let direct_service_actions = [
-        "set_custom_server",       // Server config - needs restart anyway
-        "get_server_status",       // Read-only
-        "set_auto_recording",      // Recording config - doesn't affect auth
-        "get_auto_recording",      // Read-only
-        "get_permanent_password",  // Read-only
-        "get_verification_method", // Read-only
-    ];
+const DIRECT_SERVICE_ACTIONS: &[&str] = &[
+    "get_server_status",
+    "set_auto_recording",
+    "get_auto_recording",
+    "get_permanent_password",
+    "get_verification_method",
+];
 
+pub fn call_handler(action: &str, payload: &serde_json::Value) -> String {
     // These actions MUST be forwarded to GUI/Tray because they affect
     // the running process's in-memory state (e.g., password verification)
     // - set_permanent_password: Password is cached in memory, GUI/Tray needs to update its cache
@@ -23,7 +20,7 @@ pub fn call_handler(action: &str, payload: &serde_json::Value) -> String {
 
     // If running in Service mode, check if action can be handled directly
     if is_running_in_service() {
-        if direct_service_actions.contains(&action) {
+        if DIRECT_SERVICE_ACTIONS.contains(&action) {
             log::info!(
                 "Service mode: Handling config action '{}' directly (no IPC needed)",
                 action
@@ -809,6 +806,11 @@ mod tests {
             "jxyr.juxieyun.com:21147",
             "public-key"
         ));
+    }
+
+    #[test]
+    fn custom_server_is_forwarded_to_user_session() {
+        assert!(!DIRECT_SERVICE_ACTIONS.contains(&"set_custom_server"));
     }
 
     #[test]
